@@ -1,2 +1,2 @@
 # neuromodels
-Computational neuroscience models
+Computational neuroscience models and analysis tools.
