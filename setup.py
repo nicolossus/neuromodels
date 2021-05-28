@@ -13,7 +13,7 @@ DESCRIPTION = "Computational neuroscience models and model tools."
 URL = "https://github.com/nicolossus/neuromodels"
 EMAIL = "prof.haug@gmail.com"
 AUTHOR = "Nicolai Haug"
-REQUIRES_PYTHON = '>=3.6.0'
+REQUIRES_PYTHON = '>=3.8.0'
 
 REQUIRES_INSTALL = [
     "numpy",
@@ -56,8 +56,6 @@ setup(
     extras_require=REQUIRES_EXTRAS,
     classifiers=[
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
