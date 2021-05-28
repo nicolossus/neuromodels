@@ -24,7 +24,7 @@ REQUIRES_INSTALL = [
 REQUIRES_EXTRAS = {
     "dev": [
         "pytest",
-        "flake8",
+        "flake8>=3.9.2",
         "isort",
         "twine",
     ],
