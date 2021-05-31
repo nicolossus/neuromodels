@@ -22,7 +22,7 @@ def test_all_property_raises():
     assert raises == len(props)
 
 
-@pytest.mark.parametrize("value", ["string", [1, 2], np.array(10), ])
+@pytest.mark.parametrize("value", ["string", [1, 2], np.array([10]), ])
 def test_all_property_setter_raises(value):
     """Test that model parameters raises if wrong data type is set.
 
@@ -43,7 +43,11 @@ def test_all_property_setter_raises(value):
 
 @pytest.mark.parametrize(('T', 'dt', 'exception'),
                          [(10, '0.1', TypeError),
+                          (10, [0.1], TypeError),
+                          (10, np.array([0.1]), TypeError),
                           ('10', 0.1, TypeError),
+                          ([10], 0.1, TypeError),
+                          (np.array([10]), 0.1, TypeError),
                           (10, -0.1, ValueError),
                           (-10, 0.1, ValueError)])
 def test_solver_time_arguments(T, dt, exception):
@@ -60,3 +64,27 @@ def test_solver_time_arguments(T, dt, exception):
     hh = nm.HodgkinHuxley()
     with pytest.raises(exception):
         hh.solve(stimulus, T, dt)
+
+
+@pytest.mark.parametrize(("state_param", "ic_index"),
+                         [('V', 0),
+                          ('n', 1),
+                          ('m', 2),
+                          ('h', 3), ])
+def test_rest_state(state_param, ic_index):
+    """Test that a resting system stays at rest.
+
+    A system at rest (no external stimulus) should stay in the rest state.
+    """
+
+    def stimulus(t):
+        return 0
+
+    hh = nm.HodgkinHuxley()
+    hh.solve(stimulus, 50, 0.01)
+    observed = hh.V
+    observed = getattr(hh, state_param)
+    actual = np.ones(observed.shape) * hh._initial_conditions[ic_index]
+    tolerance = 0.01
+
+    assert pytest.approx(observed, tolerance) == actual
