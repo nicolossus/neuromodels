@@ -1,7 +1,7 @@
 import neuromodels as nm
 import numpy as np
 import pytest
-from neuromodels.hodgkin_huxley import ODEsNotSolved
+from neuromodels.models import ODEsNotSolved
 
 
 def test_all_property_raises():

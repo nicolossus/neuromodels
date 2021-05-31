@@ -1,1 +1,1 @@
-from .hodgkin_huxley import *
+from .models import *
