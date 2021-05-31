@@ -20,22 +20,6 @@ class ODEsNotSolved(Exception):
     pass
 
 
-def _check_setter(parameter, name):
-    if not isinstance(parameter, (int, float)):
-        msg = (f"{name} must be set as an int or float.")
-        raise TypeError(msg)
-
-
-def _check_solver_input(parameter, name):
-    if not isinstance(parameter, (int, float)):
-        msg = (f"{name} must be set as an int or float.")
-        raise TypeError(msg)
-
-    if parameter <= 0:
-        msg = (f"{name} > 0 is required")
-        raise ValueError(msg)
-
-
 class HodgkinHuxley:
     r"""Class for representing the Hodgkin-Huxley model.
 
@@ -330,8 +314,8 @@ class HodgkinHuxley:
         """
 
         # error-handling
-        _check_solver_input(dt, 'dt')
-        _check_solver_input(T, 'T')
+        self._check_solver_input(dt, 'dt')
+        self._check_solver_input(T, 'T')
 
         # times at which to store the computed solutions
         t_eval = np.arange(0, T + dt, dt)
@@ -385,14 +369,28 @@ class HodgkinHuxley:
         self._m = solution.y[2]
         self._h = solution.y[3]
 
+    def _check_and_set(self, parameter, name):
+        if not isinstance(parameter, (int, float)):
+            msg = (f"{name} must be set as an int or float.")
+            raise TypeError(msg)
+        return parameter
+
+    def _check_solver_input(self, parameter, name):
+        if not isinstance(parameter, (int, float)):
+            msg = (f"{name} must be set as an int or float.")
+            raise TypeError(msg)
+
+        if parameter <= 0:
+            msg = (f"{name} > 0 is required")
+            raise ValueError(msg)
+
     @property
     def V_rest(self):
         return self._V_rest
 
     @V_rest.setter
     def V_rest(self, V_rest):
-        _check_setter(V_rest, 'V_rest')
-        self._V_rest = V_rest
+        self._V_rest = self._check_and_set(V_rest, 'V_rest')
 
     @property
     def Cm(self):
@@ -400,8 +398,7 @@ class HodgkinHuxley:
 
     @Cm.setter
     def Cm(self, Cm):
-        _check_setter(Cm, 'Cm')
-        self._Cm = Cm
+        self._Cm = self._check_and_set(Cm, 'Cm')
 
     @property
     def gbar_K(self):
@@ -409,8 +406,7 @@ class HodgkinHuxley:
 
     @gbar_K.setter
     def gbar_K(self, gbar_K):
-        _check_setter(gbar_K, 'gbar_K')
-        self._gbar_K = gbar_K
+        self._gbar_K = self._check_and_set(gbar_K, 'gbar_K')
 
     @property
     def gbar_Na(self):
@@ -418,8 +414,7 @@ class HodgkinHuxley:
 
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
-        _check_setter(gbar_Na, 'gbar_Na')
-        self._gbar_Na = gbar_Na
+        self._gbar_Na = self._check_and_set(gbar_Na, 'gbar_Na')
 
     @property
     def gbar_L(self):
@@ -427,8 +422,7 @@ class HodgkinHuxley:
 
     @gbar_L.setter
     def gbar_L(self, gbar_L):
-        _check_setter(gbar_L, 'gbar_L')
-        self._gbar_L = gbar_L
+        self._gbar_L = self._check_and_set(gbar_L, 'gbar_L')
 
     @property
     def E_K(self):
@@ -436,8 +430,7 @@ class HodgkinHuxley:
 
     @E_K.setter
     def E_K(self, E_K):
-        _check_setter(E_K, 'E_K')
-        self._E_K = E_K
+        self._E_K = self._check_and_set(E_K, 'E_K')
 
     @property
     def E_Na(self):
@@ -445,8 +438,7 @@ class HodgkinHuxley:
 
     @E_Na.setter
     def E_Na(self, E_Na):
-        _check_setter(E_Na, 'E_Na')
-        self._E_Na = E_Na
+        self._E_Na = self._check_and_set(E_Na, 'E_Na')
 
     @property
     def E_L(self):
@@ -454,8 +446,7 @@ class HodgkinHuxley:
 
     @E_L.setter
     def E_L(self, E_L):
-        _check_setter(E_L, 'E_L')
-        self._E_L = E_L
+        self._E_L = self._check_and_set(E_L, 'E_L')
 
     @ property
     def t(self):
