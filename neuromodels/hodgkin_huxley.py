@@ -237,13 +237,13 @@ class HodgkinHuxley:
     def _m_inf(self, V):
         return self._alpha_m(V) / (self._alpha_m(V) + self._beta_m(V))
 
-    def _tau_m(self, V):
+    def _tau_m(self, V):   # pragma: no cover <--
         return 1. / (self._alpha_m(V) + self._alpha_m(V))
 
-    def _h_inf(self, V):
+    def _h_inf(self, V):   # pragma: no cover <--
         return self._alpha_h(V) / (self._alpha_h(V) + self._beta_h(V))
 
-    def _tau_h(self, V):
+    def _tau_h(self, V):   # pragma: no cover <--
         return 1. / (self._alpha_h(V) + self._alpha_h(V))
 
     @property
@@ -365,7 +365,6 @@ class HodgkinHuxley:
         self._m = solution.y[2]
         self._h = solution.y[3]
 
-    # getters and setters
     @property
     def V_rest(self):
         return self._V_rest
@@ -373,7 +372,7 @@ class HodgkinHuxley:
     @V_rest.setter
     def V_rest(self, V_rest):
         _check_setter(V_rest, 'V_rest')
-        self._V_rest = V_rest
+        self._V_rest = V_rest   # pragma: no cover <--
 
     @property
     def Cm(self):
@@ -382,7 +381,7 @@ class HodgkinHuxley:
     @Cm.setter
     def Cm(self, Cm):
         _check_setter(Cm, 'Cm')
-        self._Cm = Cm
+        self._Cm = Cm   # pragma: no cover <--
 
     @property
     def gbar_K(self):
@@ -391,7 +390,7 @@ class HodgkinHuxley:
     @gbar_K.setter
     def gbar_K(self, gbar_K):
         _check_setter(gbar_K, 'gbar_K')
-        self._gbar_K = gbar_K
+        self._gbar_K = gbar_K   # pragma: no cover <--
 
     @property
     def gbar_Na(self):
@@ -400,7 +399,7 @@ class HodgkinHuxley:
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
         _check_setter(gbar_Na, 'gbar_Na')
-        self._gbar_Na = gbar_Na
+        self._gbar_Na = gbar_Na   # pragma: no cover <--
 
     @property
     def gbar_L(self):
@@ -409,7 +408,7 @@ class HodgkinHuxley:
     @gbar_L.setter
     def gbar_L(self, gbar_L):
         _check_setter(gbar_L, 'gbar_L')
-        self._gbar_L = gbar_L
+        self._gbar_L = gbar_L   # pragma: no cover <--
 
     @property
     def E_K(self):
@@ -418,7 +417,7 @@ class HodgkinHuxley:
     @E_K.setter
     def E_K(self, E_K):
         _check_setter(E_K, 'E_K')
-        self._E_K = E_K
+        self._E_K = E_K   # pragma: no cover <--
 
     @property
     def E_Na(self):
@@ -427,7 +426,7 @@ class HodgkinHuxley:
     @E_Na.setter
     def E_Na(self, E_Na):
         _check_setter(E_Na, 'E_Na')
-        self._E_Na = E_Na
+        self._E_Na = E_Na   # pragma: no cover <--
 
     @property
     def E_L(self):
@@ -436,7 +435,7 @@ class HodgkinHuxley:
     @E_L.setter
     def E_L(self, E_L):
         _check_setter(E_L, 'E_L')
-        self._E_L = E_L
+        self._E_L = E_L   # pragma: no cover <--
 
     @ property
     def t(self):
@@ -477,10 +476,10 @@ class HodgkinHuxley:
 if __name__ == "__main__":
 
     T = 50
-    dt = 0.1
+    dt = 0.01
 
     def stimulus(t):
-        return 10
+        return 0
 
     hh = HodgkinHuxley()
     hh.solve(stimulus, T, dt)
