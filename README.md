@@ -5,3 +5,6 @@
 [![GitHub license](https://img.shields.io/github/license/nicolossus/neuromodels)](https://github.com/nicolossus/neuromodels/blob/master/LICENSE)
 
 Computational neuroscience models and analysis tools.
+
+[![pypi version](https://img.shields.io/pypi/v/neuromodels.svg)](https://pypi.python.org/pypi/neuromodels)
+[![python compatibility](https://img.shields.io/pypi/pyversions/neuromodels.svg)](https://pypi.python.org/pypi/neuromodels)
