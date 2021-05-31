@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import inspect
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -120,8 +121,8 @@ class HodgkinHuxley:
     >>> hh.gbar_K = 36
 
     The simulation parameters needed are the simulation time ``T``, the time
-    step ``dt``, and the input ``stimulus``, the latter either as a callable or
-    ndarray with `shape=(int(T/dt)+1,)`:
+    step ``dt``, and the input ``stimulus``, the latter either as a constant,
+    callable or ndarray with `shape=(int(T/dt)+1,)`:
 
     >>> T = 50.
     >>> dt = 0.025
@@ -237,13 +238,13 @@ class HodgkinHuxley:
     def _m_inf(self, V):
         return self._alpha_m(V) / (self._alpha_m(V) + self._beta_m(V))
 
-    def _tau_m(self, V):   # pragma: no cover <--
+    def _tau_m(self, V):
         return 1. / (self._alpha_m(V) + self._alpha_m(V))
 
-    def _h_inf(self, V):   # pragma: no cover <--
+    def _h_inf(self, V):
         return self._alpha_h(V) / (self._alpha_h(V) + self._beta_h(V))
 
-    def _tau_h(self, V):   # pragma: no cover <--
+    def _tau_h(self, V):
         return 1. / (self._alpha_h(V) + self._alpha_h(V))
 
     @property
@@ -266,7 +267,7 @@ class HodgkinHuxley:
 
         Parameters
         ----------
-        stimulus : :obj:`callable` or :term:`ndarray`, shape=(int(T/dt)+1,)
+        stimulus : {:obj:`int`, :obj:`float`}, :obj:`callable` or :term:`ndarray`, shape=(int(T/dt)+1,)
             Input stimulus in units :math:`\mu A/cm^2`. If callable, the call
             signature must be ``(t)``.
         T : :obj:`float`
@@ -329,7 +330,6 @@ class HodgkinHuxley:
         """
 
         # error-handling
-
         _check_solver_input(dt, 'dt')
         _check_solver_input(T, 'T')
 
@@ -341,22 +341,42 @@ class HodgkinHuxley:
             y0 = self._initial_conditions
 
         # handle the passed stimulus
-        if callable(stimulus):
+        if isinstance(stimulus, (int, float)):
+            self.I = lambda t: stimulus
+
+        elif callable(stimulus):
+            sig = inspect.signature(stimulus)
+            free_params_in_signature = 0
+            for param in sig.parameters.values():
+                if (param.kind == param.POSITIONAL_OR_KEYWORD and
+                        param.default is param.empty):
+                    free_params_in_signature += 1
+            if free_params_in_signature > 1:
+                msg = ("Callable can only take one positional argument.")
+                raise TypeError(msg)
+
             self.I = stimulus
+
         elif isinstance(stimulus, np.ndarray):
             if not stimulus.shape == t_eval.shape:
                 msg = ("stimulus numpy.ndarray must have shape (int(T/dt)+1)")
                 raise ValueError(msg)
             # Interpolate stimulus
             self.I = interp1d(x=t_eval, y=stimulus)  # linear spline
+
         else:
-            msg = ("'stimulus' must be either a callable function of t "
-                   "or a numpy.ndarray of shape (int(T/dt)+1)")
-            raise ValueError(msg)
+            msg = ("'stimulus' must be either a scalar (int or float), "
+                   "callable function of t or a numpy.ndarray of shape "
+                   "(int(T/dt)+1)")
+            raise TypeError(msg)
 
         # solve HH ODEs
-        solution = solve_ivp(self, t_span=(0, T), y0=y0,
-                             t_eval=t_eval, first_step=dt, **kwargs)
+        solution = solve_ivp(self,
+                             t_span=(0, T),
+                             y0=y0,
+                             t_eval=t_eval,
+                             first_step=dt,
+                             **kwargs)
 
         # store solutions
         self._time = solution.t
@@ -372,7 +392,7 @@ class HodgkinHuxley:
     @V_rest.setter
     def V_rest(self, V_rest):
         _check_setter(V_rest, 'V_rest')
-        self._V_rest = V_rest   # pragma: no cover <--
+        self._V_rest = V_rest
 
     @property
     def Cm(self):
@@ -381,7 +401,7 @@ class HodgkinHuxley:
     @Cm.setter
     def Cm(self, Cm):
         _check_setter(Cm, 'Cm')
-        self._Cm = Cm   # pragma: no cover <--
+        self._Cm = Cm
 
     @property
     def gbar_K(self):
@@ -390,7 +410,7 @@ class HodgkinHuxley:
     @gbar_K.setter
     def gbar_K(self, gbar_K):
         _check_setter(gbar_K, 'gbar_K')
-        self._gbar_K = gbar_K   # pragma: no cover <--
+        self._gbar_K = gbar_K
 
     @property
     def gbar_Na(self):
@@ -399,7 +419,7 @@ class HodgkinHuxley:
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
         _check_setter(gbar_Na, 'gbar_Na')
-        self._gbar_Na = gbar_Na   # pragma: no cover <--
+        self._gbar_Na = gbar_Na
 
     @property
     def gbar_L(self):
@@ -408,7 +428,7 @@ class HodgkinHuxley:
     @gbar_L.setter
     def gbar_L(self, gbar_L):
         _check_setter(gbar_L, 'gbar_L')
-        self._gbar_L = gbar_L   # pragma: no cover <--
+        self._gbar_L = gbar_L
 
     @property
     def E_K(self):
@@ -417,7 +437,7 @@ class HodgkinHuxley:
     @E_K.setter
     def E_K(self, E_K):
         _check_setter(E_K, 'E_K')
-        self._E_K = E_K   # pragma: no cover <--
+        self._E_K = E_K
 
     @property
     def E_Na(self):
@@ -426,7 +446,7 @@ class HodgkinHuxley:
     @E_Na.setter
     def E_Na(self, E_Na):
         _check_setter(E_Na, 'E_Na')
-        self._E_Na = E_Na   # pragma: no cover <--
+        self._E_Na = E_Na
 
     @property
     def E_L(self):
@@ -435,7 +455,7 @@ class HodgkinHuxley:
     @E_L.setter
     def E_L(self, E_L):
         _check_setter(E_L, 'E_L')
-        self._E_L = E_L   # pragma: no cover <--
+        self._E_L = E_L
 
     @ property
     def t(self):
@@ -471,15 +491,3 @@ class HodgkinHuxley:
             return self._h
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
-
-
-if __name__ == "__main__":
-
-    T = 50
-    dt = 0.01
-
-    def stimulus(t):
-        return 0
-
-    hh = HodgkinHuxley()
-    hh.solve(stimulus, T, dt)
