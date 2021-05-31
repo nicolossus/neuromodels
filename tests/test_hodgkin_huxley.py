@@ -88,3 +88,33 @@ def test_rest_state(state_param, ic_index):
     tolerance = 0.01
 
     assert pytest.approx(observed, tolerance) == actual
+
+
+@pytest.mark.parametrize(('stimulus', 'should_raise'),
+                         [(10, False),
+                          (10.5, False),
+                          (lambda t: 10, False),
+                          (lambda t, noise=True: 10, False),
+                          (np.ones(5001) * 10, False),
+                          ({'t': 10}, True),
+                          (lambda t, N: 10, True),
+                          (np.ones(5000) * 10, True), ])
+def test_stimulus(stimulus, should_raise):
+    """Test that the solver raises only if stimulus is passed wrong.
+
+    The solver should only accept stimulus as a scalar (int or float),
+    a callable or numpy.ndarray. If callable, the call signature must be
+    one and only one positional argument (kewword arguments are allowed).
+    When passed as numpy.ndarray, stimulus must have shape (int(T/dt)+1).
+    """
+    T = 50
+    dt = 0.01
+    hh = nm.HodgkinHuxley()
+
+    is_raised = False
+    try:
+        hh.solve(stimulus, T, dt)
+    except Exception:
+        is_raised = True
+
+    assert should_raise == is_raised
