@@ -6,3 +6,5 @@
 [![GitHub license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nicolossus/neuromodels/blob/master/LICENSE)
 
 Computational neuroscience models and analysis tools.
+
+Some more text.
