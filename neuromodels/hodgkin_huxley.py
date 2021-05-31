@@ -19,6 +19,22 @@ class ODEsNotSolved(Exception):
     pass
 
 
+def _check_setter(parameter, name):
+    if not isinstance(parameter, (int, float)):
+        msg = (f"{name} must be set as an int or float.")
+        raise TypeError(msg)
+
+
+def _check_solver_input(parameter, name):
+    if not isinstance(parameter, (int, float)):
+        msg = (f"{name} must be set as an int or float.")
+        raise TypeError(msg)
+
+    if parameter <= 0:
+        msg = (f"{name} > 0 is required")
+        raise ValueError(msg)
+
+
 class HodgkinHuxley:
     r"""Class for representing the Hodgkin-Huxley model.
 
@@ -313,23 +329,9 @@ class HodgkinHuxley:
         """
 
         # error-handling
-        if not isinstance(dt, (int, float)):
-            msg = (f"{dt=}".split('=')[0]
-                   + " must be given as an int or float")
-            raise TypeError(msg)
 
-        if dt <= 0:
-            msg = ("dt > 0 is required")
-            raise ValueError(msg)
-
-        if not isinstance(T, (int, float)):
-            msg = (f"{T=}".split('=')[0]
-                   + " must be given as an int or float")
-            raise TypeError(msg)
-
-        if T <= 0:
-            msg = ("T > 0 is required")
-            raise ValueError(msg)
+        _check_solver_input(dt, 'dt')
+        _check_solver_input(T, 'T')
 
         # times at which to store the computed solutions
         t_eval = np.arange(0, T + dt, dt)
@@ -370,10 +372,7 @@ class HodgkinHuxley:
 
     @V_rest.setter
     def V_rest(self, V_rest):
-        if not isinstance(V_rest, (int, float)):
-            msg = (f"{V_rest=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(V_rest, 'V_rest')
         self._V_rest = V_rest
 
     @property
@@ -382,10 +381,7 @@ class HodgkinHuxley:
 
     @Cm.setter
     def Cm(self, Cm):
-        if not isinstance(Cm, (int, float)):
-            msg = (f"{Cm=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(Cm, 'Cm')
         self._Cm = Cm
 
     @property
@@ -394,10 +390,7 @@ class HodgkinHuxley:
 
     @gbar_K.setter
     def gbar_K(self, gbar_K):
-        if not isinstance(gbar_K, (int, float)):
-            msg = (f"{gbar_K=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(gbar_K, 'gbar_K')
         self._gbar_K = gbar_K
 
     @property
@@ -406,10 +399,7 @@ class HodgkinHuxley:
 
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
-        if not isinstance(gbar_Na, (int, float)):
-            msg = (f"{gbar_Na=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(gbar_Na, 'gbar_Na')
         self._gbar_Na = gbar_Na
 
     @property
@@ -418,10 +408,7 @@ class HodgkinHuxley:
 
     @gbar_L.setter
     def gbar_L(self, gbar_L):
-        if not isinstance(gbar_L, (int, float)):
-            msg = (f"{gbar_L=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(gbar_L, 'gbar_L')
         self._gbar_L = gbar_L
 
     @property
@@ -430,10 +417,7 @@ class HodgkinHuxley:
 
     @E_K.setter
     def E_K(self, E_K):
-        if not isinstance(E_K, (int, float)):
-            msg = (f"{E_K=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(E_K, 'E_K')
         self._E_K = E_K
 
     @property
@@ -442,10 +426,7 @@ class HodgkinHuxley:
 
     @E_Na.setter
     def E_Na(self, E_Na):
-        if not isinstance(E_Na, (int, float)):
-            msg = (f"{E_Na=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(E_Na, 'E_Na')
         self._E_Na = E_Na
 
     @property
@@ -454,10 +435,7 @@ class HodgkinHuxley:
 
     @E_L.setter
     def E_L(self, E_L):
-        if not isinstance(E_L, (int, float)):
-            msg = (f"{E_L=}".split('=')[0]
-                   + " must be set as an int or float")
-            raise TypeError(msg)
+        _check_setter(E_L, 'E_L')
         self._E_L = E_L
 
     @ property
@@ -494,3 +472,15 @@ class HodgkinHuxley:
             return self._h
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
+
+
+if __name__ == "__main__":
+
+    T = 50
+    dt = 0.1
+
+    def stimulus(t):
+        return 10
+
+    hh = HodgkinHuxley()
+    hh.solve(stimulus, T, dt)
