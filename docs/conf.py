@@ -53,7 +53,6 @@ extensions = [
     'sphinx.ext.viewcode',
     'numpydoc',
     'matplotlib.sphinxext.plot_directive',
-    'matplotlib.sphinxext.only_directives',
 ]
 
 
