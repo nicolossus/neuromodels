@@ -96,17 +96,17 @@ class HodgkinHuxley:
     Examples
     --------
     >>> import matplotlib.pyplot as plt
-    >>> from pylfi.models import HodgkinHuxley
+    >>> import neuromodels as nm
 
     Initialize the Hodgkin-Huxley system; model parameters can either be set in
     the constructor or accessed as class attributes:
 
-    >>> hh = HodgkinHuxley(V_rest=-70)
+    >>> hh = nm.HodgkinHuxley(V_rest=-70)
     >>> hh.gbar_K = 36
 
     The simulation parameters needed are the simulation time ``T``, the time
     step ``dt``, and the input ``stimulus``, the latter either as a constant,
-    callable or ndarray with `shape=(int(T/dt)+1,)`:
+    callable with call signature `(t)` or ndarray with `shape=(int(T/dt)+1,)`:
 
     >>> T = 50.
     >>> dt = 0.025

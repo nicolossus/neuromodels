@@ -6,3 +6,4 @@ sphinx-prompt
 pydata-sphinx-theme
 matplotlib
 numpy
+neuromodels
