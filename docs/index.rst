@@ -8,49 +8,6 @@ Welcome to NeuroModels' documentation!
 NeuroModels is a Python toolbox for simulating and analyzing computational
 neuroscience models.
 
-.. plot::
-
-      >>> import matplotlib.pyplot as plt
-      >>> import numpy as np
-      >>> x = np.linspace(0, 2*np, 100)
-      >>> y = np.sin(x)
-      >>> plt.plot(x, y)
-      >>> plt.show()
-
-2nd try
-
-.. plot::
-
-      import matplotlib.pyplot as plt
-      import numpy as np
-      x = np.linspace(0, 2 * np.pi, 100)
-      y = np.sin(x)
-      plt.plot(x, y)
-      plt.show()
-
-Hodgkin-Huxley:
-
-.. plot::
-
-      >>> import matplotlib.pyplot as plt
-      >>> import neuromodels as nm
-      >>> hh.HodgkinHuxley()
-      >>> hh.solve(10, 50, 0.1)
-      >>> plt.plot(hh.t, hh.V)
-      >>> plt.show()
-
-
-2nd try HH
-
-.. plot::
-
-      import matplotlib.pyplot as plt
-      import neuromodels as nm
-      hh.HodgkinHuxley()
-      hh.solve(10, 50, 0.1)
-      plt.plot(hh.t, hh.V)
-      plt.show()
-
 .. toctree::
    :maxdepth: 2
    :caption: User Documentation:
