@@ -1,9 +1,6 @@
-Sphinx
-packaging
-readthedocs-sphinx-search
 numpydoc
-sphinx-prompt
 pydata-sphinx-theme
-matplotlib
-numpy
-neuromodels
+sphinx-gallery
+scikit-learn
+seaborn
+pandas
