@@ -12,7 +12,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import gridspec
 
-sns.set()
+sns.set(style='whitegrid')
 
 ###############################################################################
 # Initialize the Hodgkin-Huxley system; model parameters can either be
@@ -29,7 +29,7 @@ T = 50.     # Simulation time [ms]
 dt = 0.025  # Time step
 
 ###############################################################################
-# The ``stimulus`` must be provided as either scalar value;
+# The ``stimulus`` must be provided as either a scalar value;
 
 stimulus = 10   # [mV]
 
@@ -75,7 +75,7 @@ h = hh.h
 ###############################################################################
 # The simulation results can then be plotted:
 
-fig = plt.figure(figsize=(7, 5), tight_layout=True)
+fig = plt.figure(figsize=(7, 5), tight_layout=True, dpi=300)
 gs = gridspec.GridSpec(3, 1, height_ratios=[4, 4, 1.5])
 
 ax = plt.subplot(gs[0])
@@ -99,7 +99,5 @@ plt.xlabel('Time (ms)')
 plt.ylabel('Input (nA)')
 ax.set_xticks([0, 10, 25, 40, np.max(t)])
 ax.set_yticks([0, np.max(stimulus)])
-ax.yaxis.set_major_formatter(mpl.ticker.FormatStrFormatter('%.2f'))
 
-fig.suptitle("Hodgkin-Huxley Model")
 plt.show()
