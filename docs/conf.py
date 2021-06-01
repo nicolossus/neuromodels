@@ -64,7 +64,6 @@ autodoc_mock_imports = [
     'seaborn',
     'pandas',
     'sklearn',
-    'neuromodels',
 ]
 
 # -- Configure extensions  ----------------------------------------------------
@@ -77,6 +76,16 @@ numpydoc_use_plots = True
 # see https://github.com/numpy/numpydoc/issues/69
 #
 numpydoc_class_members_toctree = False
+numpydoc_attributes_as_param_list = False
+
+# -- matplotlib plot directive
+#
+plot_include_source = True
+plot_formats = [("png", 90)]
+plot_html_show_formats = False
+plot_html_show_source_link = False
+# plot_pre_code = """import numpy as np
+# import pandas as pd"""
 
 
 # -- Autodoc
