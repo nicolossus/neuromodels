@@ -9,9 +9,6 @@ NeuroModels is a Python toolbox for simulating and analyzing computational
 neuroscience models.
 
 .. plot::
-      :context: close-figs
-      :format: doctest
-      :include-source: False
 
       >>> import matplotlib.pyplot as plt
       >>> import numpy as np
@@ -23,10 +20,7 @@ neuroscience models.
 Hodgkin-Huxley:
 
 .. plot::
-      :context: close-figs
-      :format: doctest
-      :include-source: False
-
+  
       >>> import matplotlib.pyplot as plt
       >>> import neuromodels as nm
       >>> hh.HodgkinHuxley()

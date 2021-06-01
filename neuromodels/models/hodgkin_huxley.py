@@ -127,17 +127,6 @@ class HodgkinHuxley:
 
     .. plot::
 
-       import matplotlib.pyplot as plt
-       import numpy as np
-       plt.hist(np.random.randn(1000), 20)
-
-    another
-
-    .. plot::
-        :context: close-figs
-        :format: doctest
-        :include-source: False
-
         import matplotlib.pyplot as plt
         import neuromodels as nm
 
