@@ -69,7 +69,7 @@ autodoc_mock_imports = [
 
 # -- Numpy extensions
 #
-#numpydoc_use_plots = True
+numpydoc_use_plots = True
 
 # this is needed for some reason...
 # see https://github.com/numpy/numpydoc/issues/69
