@@ -51,12 +51,13 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'numpydoc',
-    # 'matplotlib.sphinxext.plot_directive',
+    'matplotlib.sphinxext.plot_directive',
 ]
 
 
 # Add autodoc mock imports
 #
+"""
 autodoc_mock_imports = [
     'numpy',
     'matplotlib',
@@ -65,12 +66,12 @@ autodoc_mock_imports = [
     'pandas',
     'sklearn',
 ]
-
+"""
 # -- Configure extensions  ----------------------------------------------------
 
 # -- Numpy extensions
 #
-numpydoc_use_plots = True
+#numpydoc_use_plots = True
 
 # this is needed for some reason...
 # see https://github.com/numpy/numpydoc/issues/69
