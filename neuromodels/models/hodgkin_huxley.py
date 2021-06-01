@@ -130,6 +130,9 @@ class HodgkinHuxley:
         import matplotlib.pyplot as plt
         import neuromodels as nm
 
+        ########################################################################
+        # Set parameters and read data
+
         hh = nm.HodgkinHuxley(V_rest=-70)
         T = 50.
         dt = 0.025
