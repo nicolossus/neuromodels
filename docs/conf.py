@@ -13,6 +13,7 @@
 import os
 import sys
 
+import sphinx_gallery
 from matplotlib.sphinxext import plot_directive
 
 sys.path.insert(0, os.path.abspath('../'))
@@ -52,8 +53,8 @@ extensions = [
     'sphinx.ext.viewcode',
     'numpydoc',
     'matplotlib.sphinxext.plot_directive',
+    'sphinx_gallery.gen_gallery',
 ]
-
 
 # Add autodoc mock imports
 #
@@ -87,6 +88,13 @@ plot_html_show_formats = False
 plot_html_show_source_link = False
 # plot_pre_code = """import numpy as np
 # import pandas as pd"""
+
+# -- Sphinx gallery
+
+sphinx_gallery_conf = {
+    'examples_dirs': ['../examples', '../tutorials'],
+    'gallery_dirs': ['auto_examples']
+}
 
 
 # -- Autodoc
