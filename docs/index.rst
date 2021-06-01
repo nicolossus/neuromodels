@@ -56,6 +56,7 @@ Hodgkin-Huxley:
    :caption: User Documentation:
 
    installation
+   Example gallery <auto_examples/index>
 
 .. toctree::
   :maxdepth: 2
