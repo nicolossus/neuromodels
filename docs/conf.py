@@ -43,16 +43,19 @@ version = about['__version__']
 #
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.doctest',
     'sphinx.ext.autosummary',
     'sphinx.ext.extlinks',
     'sphinx.ext.intersphinx',
     'sphinx.ext.inheritance_diagram',
-    # 'sphinx.ext.linkcode',
+    'sphinx.ext.linkcode',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'numpydoc',
     'matplotlib.sphinxext.plot_directive',
+    'matplotlib.sphinxext.only_directives',
 ]
+
 
 # Add autodoc mock imports
 #
@@ -63,6 +66,7 @@ autodoc_mock_imports = [
     'seaborn',
     'pandas',
     'sklearn',
+    'neuromodels',
 ]
 
 # -- Configure extensions  ----------------------------------------------------
