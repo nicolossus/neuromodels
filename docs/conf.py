@@ -48,7 +48,6 @@ extensions = [
     'sphinx.ext.extlinks',
     'sphinx.ext.intersphinx',
     'sphinx.ext.inheritance_diagram',
-    'sphinx.ext.linkcode',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'numpydoc',
