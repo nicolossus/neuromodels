@@ -169,58 +169,207 @@ class HodgkinHuxley:
         dVdt = (self.I(t) - self._gbar_K * (n**4) * (V - self._E_K) -
                 self._gbar_Na * (m**3) * h * (V - self._E_Na) -
                 self._gbar_L * (V - self._E_L)) / self._Cm
-        dndt = (self._n_inf(V) - n) / self._tau_n(V)
-        dmdt = (self._m_inf(V) - m) / self._tau_m(V)
-        dhdt = (self._h_inf(V) - h) / self._tau_h(V)
+        dndt = (self.n_inf(V) - n) / self.tau_n(V)
+        dmdt = (self.m_inf(V) - m) / self.tau_m(V)
+        dhdt = (self.h_inf(V) - h) / self.tau_h(V)
         return [dVdt, dndt, dmdt, dhdt]
 
     # K channel kinetics
     def alpha_n(self, V):
-        """Potassium channel activation forward reaction rate :math:`\alpha_n (V)`."""
+        """Potassium channel activation forward reaction rate.
+
+        Uses the :func:`~neuromodels.utils.vtrap` function to trap for zero in
+        denominator of rate equation.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return .01 * vtrap(-(V + 55), 10)
 
-    def _beta_n(self, V):
+    def beta_n(self, V):
+        """Potassium channel activation backward reaction rate.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return .125 * np.exp(-(V + 65) / 80)
 
     # Na channel kinetics (activating)
-    def _alpha_m(self, V):
+    def alpha_m(self, V):
+        """Sodium channel activation forward reaction rate.
+
+        Uses the :func:`~neuromodels.utils.vtrap` function to trap for zero in
+        denominator of rate equation.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return .1 * vtrap(-(V + 40), 10)
 
-    def _beta_m(self, V):
+    def beta_m(self, V):
+        """Sodium channel activation backward reaction rate.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return 4 * np.exp(-(V + 65) / 18.)
 
     # Na channel kinetics (inactivating)
-    def _alpha_h(self, V):
+    def alpha_h(self, V):
+        """Sodium channel inactivation forward reaction rate.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return 0.07 * np.exp(-(V + 65) / 20.)
 
-    def _beta_h(self, V):
+    def beta_h(self, V):
+        """Sodium channel inactivation backward reaction rate.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        rate : :obj:`float` or :term:`ndarray`
+            Reaction rate.
+        """
         return 1. / (1 + np.exp(-(V + 35) / 10.))
 
     # steady-states and time constants
-    def _n_inf(self, V):
-        return self._alpha_n(V) / (self._alpha_n(V) + self._beta_n(V))
+    def n_inf(self, V):
+        """Potassium channel activation steady state.
 
-    def _tau_n(self, V):
-        return 1. / (self._q10 * (self._alpha_n(V) + self._beta_n(V)))
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
 
-    def _m_inf(self, V):
-        return self._alpha_m(V) / (self._alpha_m(V) + self._beta_m(V))
+        Returns
+        -------
+        steady_state : :obj:`float` or :term:`ndarray`
+            Steady state.
+        """
+        return self.alpha_n(V) / (self.alpha_n(V) + self.beta_n(V))
 
-    def _tau_m(self, V):
-        return 1. / (self._q10 * (self._alpha_m(V) + self._beta_m(V)))
+    def tau_n(self, V):
+        """Potassium channel activation time constant.
 
-    def _h_inf(self, V):
-        return self._alpha_h(V) / (self._alpha_h(V) + self._beta_h(V))
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
 
-    def _tau_h(self, V):
-        return 1. / (self._q10 * (self._alpha_h(V) + self._beta_h(V)))
+        Returns
+        -------
+        time_constant : :obj:`float` or :term:`ndarray`
+            Time constant.
+        """
+        return 1. / (self._q10 * (self.alpha_n(V) + self.beta_n(V)))
+
+    def m_inf(self, V):
+        """Sodium channel activation steady state.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        steady_state : :obj:`float` or :term:`ndarray`
+            Steady state.
+        """
+        return self.alpha_m(V) / (self.alpha_m(V) + self.beta_m(V))
+
+    def tau_m(self, V):
+        """Sodium channel activation time constant.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        time_constant : :obj:`float` or :term:`ndarray`
+            Time constant.
+        """
+        return 1. / (self._q10 * (self.alpha_m(V) + self.beta_m(V)))
+
+    def h_inf(self, V):
+        """Sodium channel inactivation steady state.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        steady_state : :obj:`float` or :term:`ndarray`
+            Steady state.
+        """
+        return self.alpha_h(V) / (self.alpha_h(V) + self.beta_h(V))
+
+    def tau_h(self, V):
+        """Sodium channel inactivation time constant.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        time_constant : :obj:`float` or :term:`ndarray`
+            Time constant.
+        """
+        return 1. / (self._q10 * (self.alpha_h(V) + self.beta_h(V)))
 
     @property
     def _initial_conditions(self):
         """Default Hodgkin-Huxley model initial conditions."""
-        n0 = self._n_inf(self.V_rest)
-        m0 = self._m_inf(self.V_rest)
-        h0 = self._h_inf(self.V_rest)
+        n0 = self.n_inf(self.V_rest)
+        m0 = self.m_inf(self.V_rest)
+        h0 = self.h_inf(self.V_rest)
         return (self.V_rest, n0, m0, h0)
 
     def solve(self, stimulus, T, dt, y0=None, method='RK45', **kwargs):
@@ -558,112 +707,3 @@ class HodgkinHuxley:
             return self._h
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
-
-    # State variables
-    # K channel
-    def alpha_n(self, V):
-        """Potassium channel activation forward reaction rate.
-        where $\alpha$ and $\beta$, the forward (opening) and backward (closing) reaction rates
-        """
-        return self._alpha_n(V)
-
-    @property
-    def alpha_n(self):
-        return self._alpha_n(self.V)
-
-    @property
-    def beta_n(self):
-        return self._beta_n(self.V)
-
-    @property
-    def n_inf(self):
-        return self._n_inf(self.V)
-
-    @property
-    def tau_n(self):
-        return self._tau_n(self.V)
-
-    # Na channel (activating)
-    @property
-    def alpha_m(self):
-        return self._alpha_m(self.V)
-
-    @property
-    def beta_m(self):
-        return self._beta_m(self.V)
-
-    @property
-    def m_inf(self):
-        return self._m_inf(self.V)
-
-    @property
-    def tau_m(self):
-        return self._tau_m(self.V)
-
-    # Na channel (inactivating)
-    @property
-    def alpha_h(self):
-        return self._alpha_h(self.V)
-
-    @property
-    def beta_h(self):
-        return self._beta_h(self.V)
-
-    @property
-    def h_inf(self):
-        return self._h_inf(self.V)
-
-    @property
-    def tau_h(self):
-        return self._tau_h(self.V)
-
-    def plot_potential(self, ax=None):
-        pass
-
-    def plot_vtrace(self, show_state=False, show_stim=False):
-        # plt.plot(hh.t, hh.V)
-        if show_stim:
-            pass
-        pass
-
-    def plot_rates(self):
-        pass
-
-
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    import neuromodels as nm
-
-    # Initialize the Hodgkin-Huxley system; model parameters can either
-    # be set in the constructor or accessed as class attributes:
-    hh = nm.HodgkinHuxley(V_rest=-70)
-    hh.gbar_K = 36
-
-    # The simulation parameters needed are the simulation time T, the time
-    # step dt, and the input stimulus, the latter either as a constant,
-    # callable with call signature `(t)` or ndarray with `shape=(int(T/dt)+1,)`:
-    T = 50.
-    dt = 0.01
-
-    def stimulus(t):
-        return 10 if 10 <= t <= 40 else 0
-
-    # The system is solved by calling the class method `solve` and the
-    # solutions can be accessed as class attributes:
-    #stimulus = 30
-    hh.solve(stimulus, T, dt)
-    t = hh.t
-    V = hh.V
-
-    an = hh.alpha_n
-    '''
-    plt.plot(V, an)
-    plt.xlabel('Membrane potential [mV]')
-    plt.ylabel('State')
-    plt.show()
-    '''
-
-    plt.plot(t, V)
-    plt.xlabel('Time [ms]')
-    plt.ylabel('Membrane potential [mV]')
-    plt.show()
