@@ -3,6 +3,7 @@
 import inspect
 
 import numpy as np
+from neuromodels.utils import compute_q10_correction, vtrap
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 
@@ -27,7 +28,7 @@ class HodgkinHuxley:
     of the squid, Hodgkin and Huxley succeeded to measure these currents and
     to describe their dynamics in terms of differential equations.
 
-    This class implements the original Hodgkin-Huxley model (1952) for the
+    This class implements the original Hodgkin-Huxley model [1]_ for the
     sodium, potassium and leakage channels found in the squid giant axon
     membrane. Membrane voltage is in absolute mV and has been reversed in
     polarity from the original HH convention and shifted to reflect a resting
@@ -56,8 +57,8 @@ class HodgkinHuxley:
     E_L : :obj:`float`
         Leak reversal potential in units :math:`mV`, default=-54.4.
     degC : :obj:`float`
-        Temperature (should be to set a squid-appropriate temperature) in
-        units :math:`^{\circ}C`, default=6.3.
+        Temperature when recording (should be to set a squid-appropriate
+        temperature) in units :math:`^{\circ}C`, default=6.3.
 
     Attributes
     ----------
@@ -89,17 +90,18 @@ class HodgkinHuxley:
         **Solution:** Array of state variable values ``m`` at ``t``.
     h : :term:`ndarray`
         **Solution:** Array of state variable values ``h`` at ``t``.
+    alpha_n : :term:`ndarray`
+        **Solution:** Array of state variable values at ``V``.
 
     Notes
     -----
-    Default parameter values as given by Hodgkin and Huxley (1952).
+    Default parameter values as given by Hodgkin and Huxley [1]_.
 
     References
     ----------
-    Hodgkin, A. L., Huxley, A.F. (1952).
-    "A quantitative description of membrane current and its application
-    to conduction and excitation in nerve".
-    J. Physiol. 117, 500-544.
+    .. [1] A. L. Hodgkin, A. F. Huxley, "A quantitative description of membrane
+           current and its application to conduction and excitation in nerve",
+           J. Physiol. 117, pp. 500-544, 1952.
 
     Examples
     --------
@@ -150,7 +152,7 @@ class HodgkinHuxley:
         self._degC = degC          # temperature [degrees Celsius]
 
         # Temperature coefficient (correction factor)
-        self._q10 = self._compute_q10(self._degC)
+        self._q10 = compute_q10_correction(q10=3, T1=6.3, T2=self._degC)
 
     def __call__(self, t, y):
         r"""RHS of the Hodgkin-Huxley ODEs.
@@ -172,38 +174,17 @@ class HodgkinHuxley:
         dhdt = (self._h_inf(V) - h) / self._tau_h(V)
         return [dVdt, dndt, dmdt, dhdt]
 
-    def _compute_q10(self, degC):
-        """Compute the Q10 temperature coefficient."""
-
-        return 3**((degC - 6.3) / 10)
-
-    def _vtrap(self, x, y):
-        """Traps for zero in denominator of rate eqns.
-
-        From Taylor series approximation, one can find that the general form
-        of the rate equations
-                    x / (np.exp(u) - 1)
-        is approximated by
-                    y * (1 - u / 2)
-        for u << 1.
-
-        Inspired by the vtrap function in the NEURON simulator;
-        github.com/neuronsimulator/nrn/blob/master/src/nrnoc/hh.mod
-        """
-
-        u = x / y
-        return np.where(u < 1e-6, y * (1 - u / 2), x / (np.exp(u) - 1))
-
     # K channel kinetics
-    def _alpha_n(self, V):
-        return .01 * self._vtrap(-(V + 55), 10)
+    def alpha_n(self, V):
+        """Potassium channel activation forward reaction rate :math:`\alpha_n (V)`."""
+        return .01 * vtrap(-(V + 55), 10)
 
     def _beta_n(self, V):
         return .125 * np.exp(-(V + 65) / 80)
 
     # Na channel kinetics (activating)
     def _alpha_m(self, V):
-        return .1 * self._vtrap(-(V + 40), 10)
+        return .1 * vtrap(-(V + 40), 10)
 
     def _beta_m(self, V):
         return 4 * np.exp(-(V + 65) / 18.)
@@ -242,7 +223,7 @@ class HodgkinHuxley:
         h0 = self._h_inf(self.V_rest)
         return (self.V_rest, n0, m0, h0)
 
-    def solve(self, stimulus, T, dt, y0=None, **kwargs):
+    def solve(self, stimulus, T, dt, y0=None, method='RK45', **kwargs):
         r"""Solve the Hodgkin-Huxley equations.
 
         The equations are solved on the interval ``(0, T]`` and the solutions
@@ -273,9 +254,8 @@ class HodgkinHuxley:
             the default Hodgkin-Huxley model's initial conditions will be used;
             :math:`y_0 = (V_0, n_0, m_0, h_0) = (V_{rest}, n_\infty(V_0), m_\infty(V_0), h_\infty(V_0))`.
         method : :obj:`str`
-            End time in milliseconds (:math:`ms`). default='RK45'
-            Integration method to use. Description from :obj:`scipy.integrate.solve_ivp`
-            documentation:
+            Integration method to use. Description from the
+            :obj:`scipy.integrate.solve_ivp` documentation:
                 * 'RK45' (default): Explicit Runge-Kutta method of order 5(4) [1]_.
                   The error is controlled assuming accuracy of the fourth-order
                   method, but steps are taken using the fifth-order accurate
@@ -427,6 +407,7 @@ class HodgkinHuxley:
                              y0=y0,
                              t_eval=t_eval,
                              first_step=dt,
+                             method=method,
                              **kwargs)
 
         # store solutions
@@ -540,7 +521,7 @@ class HodgkinHuxley:
         self._check_type_int_float(degC, 'degC')
         self._degC = degC
         # Recompute correction factor
-        self._q10 = self._compute_q10(self._degC)
+        self._q10 = compute_q10_correction(q10=3, T1=6.3, T2=self._degC)
 
     # Solutions
     @property
@@ -581,7 +562,8 @@ class HodgkinHuxley:
     # State variables
     # K channel
     def alpha_n(self, V):
-        """Rate
+        """Potassium channel activation forward reaction rate.
+        where $\alpha$ and $\beta$, the forward (opening) and backward (closing) reaction rates
         """
         return self._alpha_n(V)
 
@@ -634,6 +616,18 @@ class HodgkinHuxley:
     @property
     def tau_h(self):
         return self._tau_h(self.V)
+
+    def plot_potential(self, ax=None):
+        pass
+
+    def plot_vtrace(self, show_state=False, show_stim=False):
+        # plt.plot(hh.t, hh.V)
+        if show_stim:
+            pass
+        pass
+
+    def plot_rates(self):
+        pass
 
 
 if __name__ == "__main__":
