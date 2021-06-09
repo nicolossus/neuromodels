@@ -28,7 +28,7 @@ class HodgkinHuxley:
     of the squid, Hodgkin and Huxley succeeded to measure these currents and
     to describe their dynamics in terms of differential equations.
 
-    This class implements the original Hodgkin-Huxley model [1]_ for the
+    This class implements the original Hodgkin-Huxley model for the
     sodium, potassium and leakage channels found in the squid giant axon
     membrane. Membrane voltage is in absolute mV and has been reversed in
     polarity from the original HH convention and shifted to reflect a resting
@@ -79,7 +79,7 @@ class HodgkinHuxley:
     E_L : :obj:`float`
         **Model parameter:** Leak reversal potential.
     degC : :obj:`float`
-        **Model parameter:** Temperature in degrees Celsius.
+        **Model parameter:** Temperature when recording in degrees Celsius.
     t : :term:`ndarray`
         **Solution:** Array of time points ``t``.
     V : :term:`ndarray`
@@ -90,8 +90,6 @@ class HodgkinHuxley:
         **Solution:** Array of state variable values ``m`` at ``t``.
     h : :term:`ndarray`
         **Solution:** Array of state variable values ``h`` at ``t``.
-    alpha_n : :term:`ndarray`
-        **Solution:** Array of state variable values at ``V``.
 
     Notes
     -----

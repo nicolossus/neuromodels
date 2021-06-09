@@ -53,13 +53,13 @@ def vtrap(x, y):
     equivalent to
 
     .. math::
-        x / (np.exp(u) - 1),
+        x / (\exp(u) - 1),
 
     where :math:`u = x / y`. From Taylor series approximation, one can find that
     the above expression is approximated by
 
     .. math::
-        y * (1 - u / 2)
+        y (1 - u / 2)
 
     if :math:`u << 1`.
 
