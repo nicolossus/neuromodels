@@ -12,7 +12,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib import gridspec
 
-sns.set(style='whitegrid')
+sns.set(context="paper", style='whitegrid', rc={"axes.facecolor": "0.96"})
 
 ###############################################################################
 # Initialize the Hodgkin-Huxley system; model parameters can either be
@@ -26,7 +26,7 @@ hh.gbar_K = 36
 # step ``dt``, and the input ``stimulus``:
 
 T = 50.     # Simulation time [ms]
-dt = 0.025  # Time step
+dt = 0.01   # Time step
 
 ###############################################################################
 # The ``stimulus`` must be provided as either a scalar value;
@@ -89,9 +89,10 @@ plt.plot(t, n, label='$n$')
 plt.plot(t, m, label='$m$')
 plt.plot(t, h, label='$h$')
 plt.ylabel("State")
+plt.legend(loc='upper right')
 ax.set_xticks([])
 ax.set_yticks([0.0, 0.5, 1.0])
-ax.legend()
+
 
 ax = plt.subplot(gs[2])
 plt.plot(t, stimulus, 'k')

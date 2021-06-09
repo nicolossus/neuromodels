@@ -1,4 +1,0 @@
-Solvers
--------
-
-Simulator model solvers.
