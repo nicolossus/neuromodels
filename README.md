@@ -11,9 +11,13 @@
 `NeuroModels` is a Python toolbox for simulating neuroscientific models, post-simulation analysis and feature extraction.
 
 ## Overview
-`NeuroModels` is a software that aims to provide a framework for neuroscientific simulator models and methods for extracting features from the simulated data. The simulator models are implemented to be flexible, particularly in the sense of parameterizing the models.
+`NeuroModels` is a software that aims to provide a framework for neuroscientific simulator models and methods for extracting features from the simulated recording. The simulator models are implemented to be flexible, particularly in the sense of parameterizing the models.
 
 `NeuroModels` is a part of the author's [Master thesis](https://github.com/nicolossus/Master-thesis).
+
+Implemented models:
+
+* The original Hodgkin-Huxley model
 
 ## Installation instructions
 
