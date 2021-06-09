@@ -30,7 +30,7 @@ def test_all_property_setter_raises(value):
     if the wrong data type is provided.
     """
     props = ['V_rest', 'Cm', 'gbar_K', 'gbar_Na',
-             'gbar_L', 'E_K', 'E_Na', 'E_L']
+             'gbar_L', 'E_K', 'E_Na', 'E_L', 'degC', ]
     hh = nm.HodgkinHuxley()
     raises = 0
     for prop in props:
@@ -95,10 +95,10 @@ def test_rest_state(state_param, ic_index):
                           (10.5, False),
                           (lambda t: 10, False),
                           (lambda t, noise=True: 10, False),
-                          (np.ones(5001) * 10, False),
+                          (np.ones(2001) * 10, False),
                           ({'t': 10}, True),
                           (lambda t, N: 10, True),
-                          (np.ones(5000) * 10, True), ])
+                          (np.ones(2000) * 10, True), ])
 def test_stimulus(stimulus, should_raise):
     """Test that the solver raises only if stimulus is passed wrong.
 
@@ -108,7 +108,7 @@ def test_stimulus(stimulus, should_raise):
     When passed as numpy.ndarray, stimulus must have shape (int(T/dt)+1).
     """
     T = 50
-    dt = 0.01
+    dt = 0.025
     hh = nm.HodgkinHuxley()
 
     is_raised = False
