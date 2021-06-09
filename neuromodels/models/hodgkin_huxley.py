@@ -6,9 +6,6 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 
-# ignore overflow warnings; occurs with certain np.exp() evaluations
-np.warnings.filterwarnings('ignore', 'overflow')
-
 
 class ODEsNotSolved(Exception):
     """Failed attempt at accessing solutions.
@@ -21,7 +18,7 @@ class ODEsNotSolved(Exception):
 
 
 class HodgkinHuxley:
-    r"""Class for representing the Hodgkin-Huxley model.
+    r"""Class for representing the original Hodgkin-Huxley model.
 
     The Hodgkin–Huxley model describes how action potentials in neurons are
     initiated and propagated. From a biophysical point of view, action
@@ -29,6 +26,12 @@ class HodgkinHuxley:
     the cell membrane. In an extensive series of experiments on the giant axon
     of the squid, Hodgkin and Huxley succeeded to measure these currents and
     to describe their dynamics in terms of differential equations.
+
+    This class implements the original Hodgkin-Huxley model (1952) for the
+    sodium, potassium and leakage channels found in the squid giant axon
+    membrane. Membrane voltage is in absolute mV and has been reversed in
+    polarity from the original HH convention and shifted to reflect a resting
+    potential of -65 mV.
 
     All model parameters can be accessed (get or set) as class attributes.
     Solutions are available as class attributes after calling the class method
@@ -52,6 +55,9 @@ class HodgkinHuxley:
         Sodium reversal potential in units :math:`mV`, default=50.0.
     E_L : :obj:`float`
         Leak reversal potential in units :math:`mV`, default=-54.4.
+    degC : :obj:`float`
+        Temperature (should be to set a squid-appropriate temperature) in
+        units :math:`^{\circ}C`, default=6.3.
 
     Attributes
     ----------
@@ -71,6 +77,8 @@ class HodgkinHuxley:
         **Model parameter:** Sodium reversal potential.
     E_L : :obj:`float`
         **Model parameter:** Leak reversal potential.
+    degC : :obj:`float`
+        **Model parameter:** Temperature in degrees Celsius.
     t : :term:`ndarray`
         **Solution:** Array of time points ``t``.
     V : :term:`ndarray`
@@ -128,7 +136,7 @@ class HodgkinHuxley:
     """
 
     def __init__(self, V_rest=-65., Cm=1., gbar_K=36., gbar_Na=120.,
-                 gbar_L=0.3, E_K=-77., E_Na=50., E_L=-54.4):
+                 gbar_L=0.3, E_K=-77., E_Na=50., E_L=-54.4, degC=6.3):
 
         # Hodgkin-Huxley model parameters
         self._V_rest = V_rest      # resting potential [mV]
@@ -139,6 +147,10 @@ class HodgkinHuxley:
         self._E_K = E_K            # potassium reversal potential [mV]
         self._E_Na = E_Na          # sodium reversal potential [mV]
         self._E_L = E_L            # leak reversal potential [mV]
+        self._degC = degC          # temperature [degrees Celsius]
+
+        # Temperature coefficient (correction factor)
+        self._q10 = self._compute_q10(self._degC)
 
     def __call__(self, t, y):
         r"""RHS of the Hodgkin-Huxley ODEs.
@@ -155,21 +167,43 @@ class HodgkinHuxley:
         dVdt = (self.I(t) - self._gbar_K * (n**4) * (V - self._E_K) -
                 self._gbar_Na * (m**3) * h * (V - self._E_Na) -
                 self._gbar_L * (V - self._E_L)) / self._Cm
-        dndt = self._alpha_n(V) * (1 - n) - self._beta_n(V) * n
-        dmdt = self._alpha_m(V) * (1 - m) - self._beta_m(V) * m
-        dhdt = self._alpha_h(V) * (1 - h) - self._beta_h(V) * h
+        dndt = (self._n_inf(V) - n) / self._tau_n(V)
+        dmdt = (self._m_inf(V) - m) / self._tau_m(V)
+        dhdt = (self._h_inf(V) - h) / self._tau_h(V)
         return [dVdt, dndt, dmdt, dhdt]
+
+    def _compute_q10(self, degC):
+        """Compute the Q10 temperature coefficient."""
+
+        return 3**((degC - 6.3) / 10)
+
+    def _vtrap(self, x, y):
+        """Traps for zero in denominator of rate eqns.
+
+        From Taylor series approximation, one can find that the general form
+        of the rate equations
+                    x / (np.exp(u) - 1)
+        is approximated by
+                    y * (1 - u / 2)
+        for u << 1.
+
+        Inspired by the vtrap function in the NEURON simulator;
+        github.com/neuronsimulator/nrn/blob/master/src/nrnoc/hh.mod
+        """
+
+        u = x / y
+        return np.where(u < 1e-6, y * (1 - u / 2), x / (np.exp(u) - 1))
 
     # K channel kinetics
     def _alpha_n(self, V):
-        return 0.01 * (V + 55.) / (1 - np.exp(-(V + 55.) / 10.))
+        return .01 * self._vtrap(-(V + 55), 10)
 
     def _beta_n(self, V):
-        return 0.125 * np.exp(-(V + 65) / 80.)
+        return .125 * np.exp(-(V + 65) / 80)
 
     # Na channel kinetics (activating)
     def _alpha_m(self, V):
-        return 0.1 * (V + 40) / (1 - np.exp(-(V + 40) / 10.))
+        return .1 * self._vtrap(-(V + 40), 10)
 
     def _beta_m(self, V):
         return 4 * np.exp(-(V + 65) / 18.)
@@ -186,19 +220,19 @@ class HodgkinHuxley:
         return self._alpha_n(V) / (self._alpha_n(V) + self._beta_n(V))
 
     def _tau_n(self, V):
-        return 1. / (self._alpha_n(V) + self._alpha_n(V))
+        return 1. / (self._q10 * (self._alpha_n(V) + self._beta_n(V)))
 
     def _m_inf(self, V):
         return self._alpha_m(V) / (self._alpha_m(V) + self._beta_m(V))
 
     def _tau_m(self, V):
-        return 1. / (self._alpha_m(V) + self._alpha_m(V))
+        return 1. / (self._q10 * (self._alpha_m(V) + self._beta_m(V)))
 
     def _h_inf(self, V):
         return self._alpha_h(V) / (self._alpha_h(V) + self._beta_h(V))
 
     def _tau_h(self, V):
-        return 1. / (self._alpha_h(V) + self._alpha_h(V))
+        return 1. / (self._q10 * (self._alpha_h(V) + self._beta_h(V)))
 
     @property
     def _initial_conditions(self):
@@ -218,6 +252,13 @@ class HodgkinHuxley:
         If multiple calls to solve are made, they are treated independently,
         with the newest one overwriting any old solution data.
 
+        The solver only accepts ``stimulus`` as either a scalar
+        (:obj:`int` or :obj:`float`), :obj:`callable` or :term:`ndarray`. If
+        :obj:`callable`, the call signature must be one and only one positional
+        argument, e.g. ``(t)``. Kewword arguments are allowed in passed
+        callables. When passed as :term:`ndarray`, stimulus must have shape
+        ``(int(T/dt)+1).``
+
         Parameters
         ----------
         stimulus : {:obj:`int`, :obj:`float`}, :obj:`callable` or :term:`ndarray`, shape=(int(T/dt)+1,)
@@ -231,6 +272,39 @@ class HodgkinHuxley:
             Initial state of state variables ``V``, ``n``, ``m``, ``h``. If None,
             the default Hodgkin-Huxley model's initial conditions will be used;
             :math:`y_0 = (V_0, n_0, m_0, h_0) = (V_{rest}, n_\infty(V_0), m_\infty(V_0), h_\infty(V_0))`.
+        method : :obj:`str`
+            End time in milliseconds (:math:`ms`). default='RK45'
+            Integration method to use. Description from :obj:`scipy.integrate.solve_ivp`
+            documentation:
+                * 'RK45' (default): Explicit Runge-Kutta method of order 5(4) [1]_.
+                  The error is controlled assuming accuracy of the fourth-order
+                  method, but steps are taken using the fifth-order accurate
+                  formula (local extrapolation is done). A quartic interpolation
+                  polynomial is used for the dense output [2]_. Can be applied in
+                  the complex domain.
+                * 'RK23': Explicit Runge-Kutta method of order 3(2) [3]_. The error
+                  is controlled assuming accuracy of the second-order method, but
+                  steps are taken using the third-order accurate formula (local
+                  extrapolation is done). A cubic Hermite polynomial is used for the
+                  dense output. Can be applied in the complex domain.
+                * 'DOP853': Explicit Runge-Kutta method of order 8 [13]_.
+                  Python implementation of the "DOP853" algorithm originally
+                  written in Fortran [14]_. A 7-th order interpolation polynomial
+                  accurate to 7-th order is used for the dense output.
+                  Can be applied in the complex domain.
+                * 'Radau': Implicit Runge-Kutta method of the Radau IIA family of
+                  order 5 [4]_. The error is controlled with a third-order accurate
+                  embedded formula. A cubic polynomial which satisfies the
+                  collocation conditions is used for the dense output.
+                * 'BDF': Implicit multi-step variable-order (1 to 5) method based
+                  on a backward differentiation formula for the derivative
+                  approximation [5]_. The implementation follows the one described
+                  in [6]_. A quasi-constant step scheme is used and accuracy is
+                  enhanced using the NDF modification. Can be applied in the
+                  complex domain.
+                * 'LSODA': Adams/BDF method with automatic stiffness detection and
+                  switching [7]_, [8]_. This is a wrapper of the Fortran solver
+                  from ODEPACK.
         **kwargs
             Arbitrary keyword arguments are passed along to
             :obj:`scipy.integrate.solve_ivp`.
@@ -280,6 +354,30 @@ class HodgkinHuxley:
         will only specifying ``max_step`` still result in program termination if
         ``stimulus`` is passed as an array. (Will not be a problem in this
         implementation since ``first_step`` is already specified.)
+
+        References
+        ----------
+        .. [1] J. R. Dormand, P. J. Prince, "A family of embedded Runge-Kutta
+               formulae", Journal of Computational and Applied Mathematics, Vol. 6,
+               No. 1, pp. 19-26, 1980.
+        .. [2] L. W. Shampine, "Some Practical Runge-Kutta Formulas", Mathematics
+               of Computation,, Vol. 46, No. 173, pp. 135-150, 1986.
+        .. [3] P. Bogacki, L.F. Shampine, "A 3(2) Pair of Runge-Kutta Formulas",
+               Appl. Math. Lett. Vol. 2, No. 4. pp. 321-325, 1989.
+        .. [4] E. Hairer, G. Wanner, "Solving Ordinary Differential Equations II:
+               Stiff and Differential-Algebraic Problems", Sec. IV.8.
+        .. [5] `Backward Differentiation Formula
+                <https://en.wikipedia.org/wiki/Backward_differentiation_formula>`_
+                on Wikipedia.
+        .. [6] L. F. Shampine, M. W. Reichelt, "THE MATLAB ODE SUITE", SIAM J. SCI.
+               COMPUTE., Vol. 18, No. 1, pp. 1-22, January 1997.
+        .. [7] A. C. Hindmarsh, "ODEPACK, A Systematized Collection of ODE
+               Solvers," IMACS Transactions on Scientific Computation, Vol 1.,
+               pp. 55-64, 1983.
+        .. [8] L. Petzold, "Automatic selection of methods for solving stiff and
+               nonstiff systems of ordinary differential equations", SIAM Journal
+               on Scientific and Statistical Computing, Vol. 4, No. 1, pp. 136-148,
+               1983.
         """
 
         # error-handling
@@ -338,11 +436,16 @@ class HodgkinHuxley:
         self._m = solution.y[2]
         self._h = solution.y[3]
 
-    def _check_and_set(self, parameter, name):
+    # Check user input
+    def _check_type_int_float(self, parameter, name):
         if not isinstance(parameter, (int, float)):
             msg = (f"{name} must be set as an int or float.")
             raise TypeError(msg)
-        return parameter
+
+    def _check_conductances(self, parameter, name):
+        self._check_type_int_float(parameter, name)
+        if parameter < 0:
+            msg = ("Conductances must be non-negative.")
 
     def _check_solver_input(self, parameter, name):
         if not isinstance(parameter, (int, float)):
@@ -353,13 +456,15 @@ class HodgkinHuxley:
             msg = (f"{name} > 0 is required")
             raise ValueError(msg)
 
+    # Get and set model parameters
     @property
     def V_rest(self):
         return self._V_rest
 
     @V_rest.setter
     def V_rest(self, V_rest):
-        self._V_rest = self._check_and_set(V_rest, 'V_rest')
+        self._check_type_int_float(V_rest, 'V_rest')
+        self._V_rest = V_rest
 
     @property
     def Cm(self):
@@ -367,7 +472,10 @@ class HodgkinHuxley:
 
     @Cm.setter
     def Cm(self, Cm):
-        self._Cm = self._check_and_set(Cm, 'Cm')
+        self._check_type_int_float(Cm, 'Cm')
+        if Cm <= 0:
+            msg = ("Capacitance must be strictly positive.")
+        self._Cm = Cm
 
     @property
     def gbar_K(self):
@@ -375,7 +483,8 @@ class HodgkinHuxley:
 
     @gbar_K.setter
     def gbar_K(self, gbar_K):
-        self._gbar_K = self._check_and_set(gbar_K, 'gbar_K')
+        self._check_conductances(gbar_K, 'gbar_K')
+        self._gbar_K = gbar_K
 
     @property
     def gbar_Na(self):
@@ -383,7 +492,8 @@ class HodgkinHuxley:
 
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
-        self._gbar_Na = self._check_and_set(gbar_Na, 'gbar_Na')
+        self._check_conductances(gbar_Na, 'gbar_Na')
+        self._gbar_Na = gbar_Na
 
     @property
     def gbar_L(self):
@@ -391,7 +501,8 @@ class HodgkinHuxley:
 
     @gbar_L.setter
     def gbar_L(self, gbar_L):
-        self._gbar_L = self._check_and_set(gbar_L, 'gbar_L')
+        self._check_conductances(gbar_L, 'gbar_L')
+        self._gbar_L = gbar_L
 
     @property
     def E_K(self):
@@ -399,7 +510,8 @@ class HodgkinHuxley:
 
     @E_K.setter
     def E_K(self, E_K):
-        self._E_K = self._check_and_set(E_K, 'E_K')
+        self._check_type_int_float(E_K, 'E_K')
+        self._E_K = E_K
 
     @property
     def E_Na(self):
@@ -407,7 +519,8 @@ class HodgkinHuxley:
 
     @E_Na.setter
     def E_Na(self, E_Na):
-        self._E_Na = self._check_and_set(E_Na, 'E_Na')
+        self._check_type_int_float(E_Na, 'E_Na')
+        self._E_Na = E_Na
 
     @property
     def E_L(self):
@@ -415,39 +528,148 @@ class HodgkinHuxley:
 
     @E_L.setter
     def E_L(self, E_L):
-        self._E_L = self._check_and_set(E_L, 'E_L')
+        self._check_type_int_float(E_L, 'E_L')
+        self._E_L = E_L
 
-    @ property
+    @property
+    def degC(self):
+        return self._degC
+
+    @degC.setter
+    def degC(self, degC):
+        self._check_type_int_float(degC, 'degC')
+        self._degC = degC
+        # Recompute correction factor
+        self._q10 = self._compute_q10(self._degC)
+
+    # Solutions
+    @property
     def t(self):
         try:
             return self._time
         except AttributeError as e:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
 
-    @ property
+    @property
     def V(self):
         try:
             return self._V
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
 
-    @ property
+    @property
     def n(self):
         try:
             return self._n
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
 
-    @ property
+    @property
     def m(self):
         try:
             return self._m
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
 
-    @ property
+    @property
     def h(self):
         try:
             return self._h
         except AttributeError:
             raise ODEsNotSolved("Missing call to solve. No solution exists.")
+
+    # State variables
+    # K channel
+    def alpha_n(self, V):
+        """Rate
+        """
+        return self._alpha_n(V)
+
+    @property
+    def alpha_n(self):
+        return self._alpha_n(self.V)
+
+    @property
+    def beta_n(self):
+        return self._beta_n(self.V)
+
+    @property
+    def n_inf(self):
+        return self._n_inf(self.V)
+
+    @property
+    def tau_n(self):
+        return self._tau_n(self.V)
+
+    # Na channel (activating)
+    @property
+    def alpha_m(self):
+        return self._alpha_m(self.V)
+
+    @property
+    def beta_m(self):
+        return self._beta_m(self.V)
+
+    @property
+    def m_inf(self):
+        return self._m_inf(self.V)
+
+    @property
+    def tau_m(self):
+        return self._tau_m(self.V)
+
+    # Na channel (inactivating)
+    @property
+    def alpha_h(self):
+        return self._alpha_h(self.V)
+
+    @property
+    def beta_h(self):
+        return self._beta_h(self.V)
+
+    @property
+    def h_inf(self):
+        return self._h_inf(self.V)
+
+    @property
+    def tau_h(self):
+        return self._tau_h(self.V)
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    import neuromodels as nm
+
+    # Initialize the Hodgkin-Huxley system; model parameters can either
+    # be set in the constructor or accessed as class attributes:
+    hh = nm.HodgkinHuxley(V_rest=-70)
+    hh.gbar_K = 36
+
+    # The simulation parameters needed are the simulation time T, the time
+    # step dt, and the input stimulus, the latter either as a constant,
+    # callable with call signature `(t)` or ndarray with `shape=(int(T/dt)+1,)`:
+    T = 50.
+    dt = 0.01
+
+    def stimulus(t):
+        return 10 if 10 <= t <= 40 else 0
+
+    # The system is solved by calling the class method `solve` and the
+    # solutions can be accessed as class attributes:
+    #stimulus = 30
+    hh.solve(stimulus, T, dt)
+    t = hh.t
+    V = hh.V
+
+    an = hh.alpha_n
+    '''
+    plt.plot(V, an)
+    plt.xlabel('Membrane potential [mV]')
+    plt.ylabel('State')
+    plt.show()
+    '''
+
+    plt.plot(t, V)
+    plt.xlabel('Time [ms]')
+    plt.ylabel('Membrane potential [mV]')
+    plt.show()
