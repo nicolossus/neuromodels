@@ -138,6 +138,17 @@ class HodgkinHuxley:
     def __init__(self, V_rest=-65., Cm=1., gbar_K=36., gbar_Na=120.,
                  gbar_L=0.3, E_K=-77., E_Na=50., E_L=-54.4, degC=6.3):
 
+        # Check model parameters
+        self._check_type_int_float(V_rest, 'V_rest')
+        self._check_capacitance(Cm, 'Cm')
+        self._check_conductances(gbar_K, 'gbar_K')
+        self._check_conductances(gbar_Na, 'gbar_Na')
+        self._check_conductances(gbar_L, 'gbar_L')
+        self._check_type_int_float(E_K, 'E_K')
+        self._check_type_int_float(E_Na, 'E_Na')
+        self._check_type_int_float(E_L, 'E_L')
+        self._check_type_int_float(degC, 'degC')
+
         # Hodgkin-Huxley model parameters
         self._V_rest = V_rest      # resting potential [mV]
         self._Cm = Cm              # membrane capacitance [μF/cm**2]
@@ -531,7 +542,7 @@ class HodgkinHuxley:
 
         Note that ``first_step`` still needs to specified even if ``max_step`` is.
         ``select_initial_step`` will be called regardless if ``first_step`` is not
-        specified, and the calls for calculating h1 will be done before checking
+        specified, and the calls for calculating ``h1`` will be done before checking
         whether ``h0`` is larger than than the max allowed step size or not. Thus
         will only specifying ``max_step`` still result in program termination if
         ``stimulus`` is passed as an array. (Will not be a problem in this
@@ -625,10 +636,17 @@ class HodgkinHuxley:
             msg = (f"{name} must be set as an int or float.")
             raise TypeError(msg)
 
+    def _check_capacitance(self, parameter, name):
+        self._check_type_int_float(parameter, name)
+        if parameter <= 0:
+            msg = ("Capacitance must be strictly positive.")
+            raise ValueError(msg)
+
     def _check_conductances(self, parameter, name):
         self._check_type_int_float(parameter, name)
         if parameter < 0:
             msg = ("Conductances must be non-negative.")
+            raise ValueError(msg)
 
     def _check_solver_input(self, parameter, name):
         if not isinstance(parameter, (int, float)):
@@ -655,9 +673,7 @@ class HodgkinHuxley:
 
     @Cm.setter
     def Cm(self, Cm):
-        self._check_type_int_float(Cm, 'Cm')
-        if Cm <= 0:
-            msg = ("Capacitance must be strictly positive.")
+        self._check_capacitance(Cm, 'Cm')
         self._Cm = Cm
 
     @property
