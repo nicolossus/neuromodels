@@ -164,13 +164,68 @@ class HodgkinHuxley:
         """
 
         V, n, m, h = y
-        dVdt = (self.I(t) - self._gbar_K * (n**4) * (V - self._E_K) -
-                self._gbar_Na * (m**3) * h * (V - self._E_Na) -
-                self._gbar_L * (V - self._E_L)) / self._Cm
+
+        dVdt = (self.I_inj(t) - self.I_K(V, n) -
+                self.I_Na(V, m, h) - self.I_L(V)) / self._Cm
         dndt = (self.n_inf(V) - n) / self.tau_n(V)
         dmdt = (self.m_inf(V) - m) / self.tau_m(V)
         dhdt = (self.h_inf(V) - h) / self.tau_h(V)
+
         return [dVdt, dndt, dmdt, dhdt]
+
+    # Membrane currents
+    def I_K(self, V, n):
+        """Potassium current.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+        n : :obj:`float` or :term:`ndarray`
+            Potassium channel state variable.
+
+        Returns
+        -------
+        I_K : :obj:`float` or :term:`ndarray`
+            Potassium current.
+        """
+
+        return self._gbar_K * (n**4) * (V - self._E_K)
+
+    def I_Na(self, V, m, h):
+        """Sodium current.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+        m : :obj:`float` or :term:`ndarray`
+            Sodium channel activation state variable.
+        h : :obj:`float` or :term:`ndarray`
+            Sodium channel inactivation state variable.
+
+        Returns
+        -------
+        I_Na : :obj:`float` or :term:`ndarray`
+            Sodium current.
+        """
+
+        return self._gbar_Na * (m**3) * h * (V - self._E_Na)
+
+    def I_L(self, V):
+        """Leak current.
+
+        Parameters
+        ----------
+        V : :obj:`float` or :term:`ndarray`
+            Membrane potential.
+
+        Returns
+        -------
+        I_L : :obj:`float` or :term:`ndarray`
+            Leak current.
+        """
+        return self._gbar_L * (V - self._E_L)
 
     # K channel kinetics
     def alpha_n(self, V):
@@ -520,7 +575,7 @@ class HodgkinHuxley:
 
         # handle the passed stimulus
         if isinstance(stimulus, (int, float)):
-            self.I = lambda t: stimulus
+            self.I_inj = lambda t: stimulus
 
         elif callable(stimulus):
             sig = inspect.signature(stimulus)
@@ -533,14 +588,14 @@ class HodgkinHuxley:
                 msg = ("Callable can only take one positional argument.")
                 raise TypeError(msg)
 
-            self.I = stimulus
+            self.I_inj = stimulus
 
         elif isinstance(stimulus, np.ndarray):
             if not stimulus.shape == t_eval.shape:
                 msg = ("stimulus numpy.ndarray must have shape (int(T/dt)+1)")
                 raise ValueError(msg)
             # Interpolate stimulus
-            self.I = interp1d(x=t_eval, y=stimulus)  # linear spline
+            self.I_inj = interp1d(x=t_eval, y=stimulus)  # linear spline
 
         else:
             msg = ("'stimulus' must be either a scalar (int or float), "
