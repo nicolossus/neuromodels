@@ -41,6 +41,34 @@ def test_all_property_setter_raises(value):
     assert raises == len(props)
 
 
+def test_conductances_raises():
+    """Test that conductances raises if set as negative number.
+
+    Conductances must be non-negative and should raise a ValueError if
+    set as negative.
+    """
+    props = ['gbar_K', 'gbar_Na', 'gbar_L', ]
+    hh = nm.HodgkinHuxley()
+    raises = 0
+    for prop in props:
+        try:
+            setattr(hh, prop, -10)
+        except ValueError:
+            raises += 1
+    assert raises == len(props)
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_capacitance_raises(value):
+    """Test that capacitance raises if not strictly positive.
+
+    Capacitance must be strictly positive and should raise a ValueError if not.
+    """
+    hh = nm.HodgkinHuxley()
+    with pytest.raises(ValueError):
+        setattr(hh, 'Cm', value)
+
+
 @pytest.mark.parametrize(('T', 'dt', 'exception'),
                          [(10, '0.1', TypeError),
                           (10, [0.1], TypeError),
