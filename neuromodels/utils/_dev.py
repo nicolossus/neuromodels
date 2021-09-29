@@ -46,7 +46,7 @@ print(f"{alpha_n=}")
 
 expmax_float64 = np.log(np.finfo(np.float64).max)
 expmax_clip = np.int64(expmax_float64) - np.int64(1)
-expmin_clip = - expmax_clip
+expmin_clip = -expmax_clip
 
 
 def safe_exp(u):

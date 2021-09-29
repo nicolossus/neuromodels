@@ -1,23 +1,6 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-import time
-
-import elephant.statistics as es
 import matplotlib.pyplot as plt
 import nest
-#import neuromodels.raster_plot as raster_plot
 import numpy as np
-import quantities as pq
-import seaborn as sns
-from matplotlib import gridspec
-from neo.core import SpikeTrain
-from nest import raster_plot, visualization, voltage_trace
-
-sns.set(context="paper", style='whitegrid', rc={"axes.facecolor": "0.96"})
-
-#from neuromodels import raster_plot
-
-nest.set_verbosity(level="M_FATAL")
 
 # kw: set_state="AI"
 
@@ -41,20 +24,8 @@ https://nest-simulator.readthedocs.io/en/stable/models/index.html
 '''
 
 
-class NetworkNotSimulated(Exception):
-    """Failed attempt at accessing solutions.
-
-    A call to simulate the network must be
-    carried out before the solution properties
-    can be used.
-    """
-    pass
-
-
 class BrunelNetwork:
     """
-    neuronal network composed of excitatory and inhibitory spiking neurons
-
     Implementation of the sparsely connected recurrent network described by
     Brunel (2000).
 
@@ -83,9 +54,9 @@ class BrunelNetwork:
             order=100,
             epsilon=0.1,
             eta=2.0,
-            g=10.0,
+            g=5.0,
             J=0.1,
-            C_m=250,
+            C_m=1,  # 250
             V_rest=0,
             V_th=20,
             V_reset=10,
@@ -118,7 +89,7 @@ class BrunelNetwork:
         # -------------------------------------------------------------------
         self._NE = 4 * int(order)        # number of excitatory neurons
         self._NI = 1 * int(order)        # number of inhibitory neurons
-        self._N_neurons = self._NE + self._NI   # total number of neurons
+        self._N = self._NE + self._NI   # total number of neurons
 
         self._epsilon = epsilon           # connection probability
 
@@ -152,7 +123,6 @@ class BrunelNetwork:
                                'V_reset': V_reset}
 
         # Flags
-        self._is_simulated = False
         self._is_calibrated = False
         self._is_built = False
         self._is_connected = False
@@ -213,19 +183,17 @@ class BrunelNetwork:
         # nest.SetDefaults("poisson_generator", {"rate": self._p_rate})
 
         # Create local excitatory neuron population
-        self._nodes_ex = nest.Create("iaf_psc_delta", self._NE)
+        nodes_ex = nest.Create("iaf_psc_delta", self._NE)
         # Create local inhibitory neuron population
-        self._nodes_in = nest.Create("iaf_psc_delta", self._NI)
+        nodes_in = nest.Create("iaf_psc_delta", self._NI)
 
         # Distribute membrane potentials to random values between zero and
         # threshold
-        nest.SetStatus(self._nodes_ex, "V_m",
-                       np.random.rand(len(self._nodes_ex)) * self._V_th)
-        nest.SetStatus(self._nodes_in, "V_m",
-                       np.random.rand(len(self._nodes_in)) * self._V_th)
+        nest.SetStatus(nodes_ex, "V_m",
+                       np.random.rand(len(nodes_ex)) * self._V_th)
+        nest.SetStatus(nodes_in, "V_m",
+                       np.random.rand(len(nodes_in)) * self._V_th)
 
-        self._Vm_ini_ex = np.array(nest.GetStatus(self._nodes_ex, 'V_m'))
-        self._Vm_ini_in = np.array(nest.GetStatus(self._nodes_in, 'V_m'))
         # Create external population. The 'poisson_generator' device produces
         # a spike train governed by a Poisson process at a given rate. If a
         # Poisson generator is connected to N targets, it generates N i.i.d.
@@ -247,13 +215,13 @@ class BrunelNetwork:
         # recorder a 'label', which will be part of the name of the output
         # file written by the recorder. Since two devices are created, we
         # supply a list of dictionaries.
-        # nest.SetDefaults('spike_recorder', {'to_file': self._to_file})
+        #nest.SetDefaults('spike_recorder', {'to_file': self._to_file})
 
-        self._spikes = nest.Create("spike_recorder", 2,
-                                   [{"label": 'brunel-py-ex'},
-                                    {"label": 'brunel-py-in'}])
-        self._espikes = self._spikes[:1]
-        self._ispikes = self._spikes[1:]
+        spikes = nest.Create("spike_recorder", 2,
+                             [{"label": 'brunel-py-ex'},
+                              {"label": 'brunel-py-in'}])
+        espikes = spikes[:1]
+        ispikes = spikes[1:]
 
         '''
         # Configuration of the spike recorders that record excitatory and
@@ -305,17 +273,15 @@ class BrunelNetwork:
         # excitatory and inhibitory neurons using the excitatory synapse.
         # Since the Poisson generator is connected to all neurons in the local
         # populations, the default rule, 'all_to_all', of `Connect` is used.
-        nest.Connect(noise, self._nodes_ex,
-                     'all_to_all', syn_spec='excitatory')
-        nest.Connect(noise, self._nodes_in,
-                     'all_to_all', syn_spec='excitatory')
+        nest.Connect(noise, nodes_ex, 'all_to_all', syn_spec='excitatory')
+        nest.Connect(noise, nodes_in, 'all_to_all', syn_spec='excitatory')
 
         # Connect subset of the nodes of the excitatory and inhibitory
         # populations to the associated spike recorder using excitatory
         # synapses.
-        nest.Connect(self._nodes_ex[:self._N_rec], self._espikes,
+        nest.Connect(nodes_ex[:self._N_rec], espikes,
                      'all_to_all', syn_spec='excitatory')
-        nest.Connect(self._nodes_in[:self._N_rec], self._ispikes,
+        nest.Connect(nodes_in[:self._N_rec], ispikes,
                      'all_to_all', syn_spec='excitatory')
 
         # Connect the excitatory population to all neurons using the
@@ -325,7 +291,7 @@ class BrunelNetwork:
         # Since the synapse specification is reduced to assigning the
         # pre-defined excitatory synapse it suffices to insert a string.
         conn_params_ex = {'rule': 'fixed_indegree', 'indegree': self._CE}
-        nest.Connect(self._nodes_ex, self._nodes_ex + self._nodes_in,
+        nest.Connect(nodes_ex, nodes_ex + nodes_in,
                      conn_params_ex, "excitatory")
 
         # Connect the inhibitory population to all neurons using the
@@ -333,16 +299,20 @@ class BrunelNetwork:
         # the synapse paramtere are defined analogously to the connection from
         # the excitatory population defined above.
         conn_params_in = {'rule': 'fixed_indegree', 'indegree': self._CI}
-        nest.Connect(self._nodes_in, self._nodes_ex + self._nodes_in,
+        nest.Connect(nodes_in, nodes_ex + nodes_in,
                      conn_params_in, "inhibitory")
+
+        print("DONE")
 
     def simulate(
         self,
         T=1000,
         dt=0.1,
-        cutoff=0,
-        N_rec=100,
+        cutoff=100,
+        N_rec=50,
         threads=1,
+        to_file=False,
+        destination="brunel_simulation_output",
         print_time=False
     ):
         """Simulate the model
@@ -360,15 +330,19 @@ class BrunelNetwork:
             Number of neurons to record
         """
 
-        self._T = T
         self._N_rec = N_rec
-        self._cutoff = cutoff
+        self._to_file = to_file
+        self._destination = destination
 
         # Start a new NEST session
         nest.ResetKernel()
 
         # Configure kernel
-        # nest.SetKernelStatus({"grng_seed": 10})
+        nest.SetKernelStatus({"grng_seed": 10})
+
+        #
+        nest.SetKernelStatus({"print_time": print_time,
+                              "local_num_threads": threads})
 
         '''
         Configuration of the simulation kernel by the previously defined time
@@ -377,271 +351,18 @@ class BrunelNetwork:
         total simulation time.
         '''
 
-        nest.SetKernelStatus({"resolution": dt,
-                              "print_time": print_time,
-                              "local_num_threads": threads})
+        nest.SetKernelStatus({"resolution": dt, "print_time": True,
+                              "overwrite_files": True})
 
-        # calibrate/compute network parameters
         self._calibrate()
-
-        # build network
-        start_time_build = time.time()
         self._build_network()
-        self._build_time = time.time() - start_time_build
-
-        # simulate network
-        start_time_simulate = time.time()
-        nest.Simulate(self._T)
-        self._simulation_time = time.time() - start_time_simulate
-
-        '''
-        Reading out the total number of spikes received from the spike
-        detector connected to the excitatory population and the inhibitory
-        population.
-        '''
-
-        self._events_ex = nest.GetStatus(self._espikes, "n_events")[0]
-        self._events_in = nest.GetStatus(self._ispikes, "n_events")[0]
-
-        ex_events = nest.GetStatus(self._espikes, 'events')[0]
-        in_events = nest.GetStatus(self._ispikes, 'events')[0]
-        ex_spikes = np.stack((ex_events['senders'], ex_events['times'])).T
-        in_spikes = np.stack((in_events['senders'], in_events['times'])).T
-
-    @property
-    def num_synapses(self):
-        '''
-        Reading out the number of connections established using the excitatory
-        and inhibitory synapse model. The numbers are summed up resulting in
-        the total number of synapses.
-        '''
-        num_synapses = nest.GetDefaults("excitatory")["num_connections"] +\
-            nest.GetDefaults("inhibitory")["num_connections"]
-        return num_synapses
-
-    @property
-    def build_time_wclock(self):
-        return self._build_time
-
-    @property
-    def sim_time_wclock(self):
-        return self._simulation_time
-
-    @property
-    def rate_ex(self):
-        '''
-        Calculation of the mean firing rate of the excitatory neurons by
-        dividing the total number of recorded spikes by the number of
-        neurons recorded from and the simulation time. The multiplication
-        by 1000.0 converts the unit 1/ms to 1/s=Hz.
-        '''
-        try:
-            rate_ex = self._events_ex / self._T * 1000.0 / self._N_rec
-            return rate_ex
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    @property
-    def rate_in(self):
-        '''
-        Calculation of the average firing rate of the inhibitory neurons
-        by dividing the total number of recorded spikes by the number of
-        neurons recorded from and the simulation time. The multiplication
-        by 1000.0 converts the unit 1/ms to 1/s=Hz.
-        '''
-        try:
-            rate_in = self._events_in / self._T * 1000.0 / self._N_rec
-            return rate_in
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    def plot_raster(self, neuron="ex", hist=True, **kwargs):
-        """
-        Raster plot
-
-        **kwargs:
-            Are passed to Nest's `raster_plot`:
-                hist : bool, optional
-                    Display histogram
-                hist_binwidth : float, optional
-                    Width of histogram bins
-                grayscale : bool, optional
-                    Plot in grayscale
-                title : str, optional
-                    Plot title
-                xlabel : str, optional
-                    Label for x-axis
-        """
-        if not isinstance(neuron, str):
-            msg = ("'neuron' must be passed as str, either 'ex'"
-                   " (excitatory) or 'in' (inhibitory).")
-            raise TypeError(msg)
-        if neuron not in ['ex', 'in']:
-            msg = ("'neuron' must be set as either 'ex' (excitatory) or"
-                   " 'in' (inhibitory).")
-            raise ValueError(msg)
-
-        try:
-            if neuron == "ex":
-                spikes = self._espikes
-            elif neuron == "in":
-                spikes = self._ispikes
-            raster_plot.from_device(spikes, hist=hist, **kwargs)
-            plt.show()
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    def plot_vm_init(self):
-        """
-        Plot initial membrane potential distribution
-        """
-        plt.scatter(np.arange(self._NE), self._Vm_ini_ex, color="C0",
-                    label="Excitatory")
-        plt.scatter(np.arange(self._NI), self._Vm_ini_in, color="C1",
-                    label="Inhibitory")
-        plt.xlabel('Neuron')
-        plt.ylabel('Initial membrane potential $V_m$ [mV]')
-        plt.legend()
-        plt.show()
-
-    def print_network(self):
-        nest.PrintNetwork()
-
-    def plot_network(self):
-        visualization.plot_network(self._nodes_ex, 'nodes_ex.png')
-        # plt.show()
-
-    def spiketrains2(self, neuron="ex"):
-
-        # call _check_neuron
-        if neuron == "ex":
-            spiketrains = self.spiketrains_ex
-        elif neuron == "in":
-            spiketrains = self.spiketrains_in
-
-        neo_spiketrains = []
-        for spiketrain in spiketrains:
-            neo_spiketrain = SpikeTrain(spiketrain,
-                                        t_stop=self.t_stop,
-                                        units=pq.ms)
-            neo_spiketrains.append(neo_spiketrain)
-
-        return neo_spiketrains
-
-    def spiketrains(self, n_type="exc"):
-        try:
-            # check and get neuron population
-            self._check_n_type(n_type)
-            if n_type == "exc":
-                events = nest.GetStatus(self._espikes, 'events')[0]
-                nodes = self._nodes_ex
-            elif n_type == "inh":
-                events = nest.GetStatus(self._ispikes, 'events')[0]
-                nodes = self._nodes_in
-
-            # List of spike trains
-            neo_spiketrains = []
-            for sender in nodes[:self._N_rec]:
-
-                st = events['times'][events['senders'] == sender]
-                st = st[st > self._cutoff] - self._cutoff
-                id = events['senders'][events['senders'] == sender][0]
-                neo_spiketrain = SpikeTrain(st,
-                                            t_stop=self.t_stop,
-                                            units=pq.ms,
-                                            n_type=n_type,
-                                            unitID=id)
-                neo_spiketrains.append(neo_spiketrain)
-
-            return neo_spiketrains
-
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    @property
-    def t_stop(self):
-        return self._T - self._cutoff
-
-    @property
-    def spiketrains_ex(self):
-        """ Excitatory spike trains
-        """
-        try:
-            events_ex = nest.GetStatus(self._espikes, 'events')[0]
-            spiketrains_ex = []
-            for sender in self._nodes_ex[:self._N_rec]:
-                spiketrain = events_ex['times'][events_ex['senders'] == sender]
-                spiketrain = spiketrain[spiketrain >
-                                        self._cutoff] - self._cutoff
-                spiketrains_ex.append(spiketrain)
-
-            return spiketrains_ex
-
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    @property
-    def spiketrains_in(self):
-        """ Inhibitory spike trains
-        """
-        try:
-            events_in = nest.GetStatus(self._ispikes, 'events')[0]
-            spiketrains_in = []
-            for sender in self._nodes_in[:self._N_rec]:
-                spiketrain = events_in['times'][events_in['senders'] == sender]
-                spiketrain = spiketrain[spiketrain >
-                                        self._cutoff] - self._cutoff
-                spiketrains_in.append(spiketrain)
-
-            return spiketrains_in
-
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
-
-    def summary(self):
-        try:
-            num_excitatory = int(self._CE * self._N_neurons) + self._N_neurons
-            num_inhibitory = int(self._CI * self._N_neurons)
-            print("-" * 40)
-            print("Brunel network simulation")
-            print("-" * 40)
-            print(f"Build time (wall clock)      : {self._build_time:.3f} sec")
-            print(
-                f"Simulation time (wall clock) : {self._simulation_time:.3f} sec")
-            print(f"Number of neurons            : {self._N_neurons}")
-            print(f"Number of synapses           : {self.num_synapses}")
-            print(f"        Excitatory           : {num_excitatory}")
-            print(f"        Inhibitory           : {num_inhibitory}")
-            print(f"Excitatory rate              : {self.rate_ex:.2f} Hz")
-            print(f"Inhibitory rate              : {self.rate_in:.2f} Hz")
-            print("-" * 40)
-        except AttributeError:
-            msg = ("Missing call to simulate. No solution exists.")
-            raise NetworkNotSimulated(msg)
+        nest.Simulate(T)
 
     # Check user input
     def _check_type_int_float(self, parameter, name):
         if not isinstance(parameter, (int, float)):
             msg = (f"{name} must be set as an int or float.")
             raise TypeError(msg)
-
-    def _check_n_type(self, n_type):
-        """Check whether neuron type is provided as 'exc' or 'inh'."""
-        #
-        if not isinstance(n_type, str):
-            msg = ("'n_type' must be passed as str, either 'exc'"
-                   " (excitatory) or 'inh' (inhibitory).")
-            raise TypeError(msg)
-        if n_type not in ['exc', 'inh']:
-            msg = ("'n_type' must be set as either 'exc' (excitatory) or"
-                   " 'in' (inhibitory).")
-            raise ValueError(msg)
 
     # Get and set model parameters
     @property
@@ -673,44 +394,7 @@ class BrunelNetwork:
 
 
 if __name__ == "__main__":
-    bnet = BrunelNetwork(order=2500)
-    bnet.g = 4.5
-    bnet.eta = 2.0
-    bnet.J = 0.35
-    bnet.simulate(threads=8, print_time=True)
-    bnet.summary()
-    bnet.plot_raster()
-    spiketrains = bnet.spiketrains(n_type="exc")
-
-    '''
-    average_firing_rates = []
-
-    print(spiketrains[0])
-
-    for spiketrain in spiketrains:
-        average_firing_rate = es.mean_firing_rate(spiketrain)
-        average_firing_rate.units = pq.Hz
-        # print(average_firing_rate)
-        average_firing_rates.append(average_firing_rate.magnitude)
-
-    print(f"Elephant average firing rate: {np.mean(average_firing_rates)}")
-    '''
-
-    #plt.plot(times, average_firing_rates, 'o')
-    # plt.show()
-    #frate = mean_firing_rate(train)
-    # print(frate)
-    # print(frate.magnitude)
-    # bnet.summary()
-    # bnet.plot_vm_init()
-    #spiketrains_ex = bnet.spiketrains_ex
-
-    # bnet.plot_raster(title="yo")
-    # bnet.plot_raster_in()
-    # bnet.plot_raster()
-    # bnet.plot_network()
-    # bnet.plot_nodes()
-    # bnet.plot_raster_in()
-    # print("DONE 2")
-    # bnet.simulate()
+    bnet = BrunelNetwork()
+    bnet.simulate()
+    print("DONE 2")
     # print("h")

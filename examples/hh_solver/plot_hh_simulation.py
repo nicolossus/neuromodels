@@ -1,6 +1,6 @@
 """
 =====================================================================
-The Hodgkin-Huxley Model Solver
+Simulating a Hodgkin-Huxley system
 =====================================================================
 Solving a Hodgkin-Huxley system and visualizing the simulation results.
 """
@@ -31,7 +31,7 @@ dt = 0.01   # Time step
 ###############################################################################
 # The ``stimulus`` must be provided as either a scalar value;
 
-stimulus = 10   # [mV]
+stimulus = 10
 
 ###############################################################################
 # a callable, e.g. a function, with signature ``(t)``;

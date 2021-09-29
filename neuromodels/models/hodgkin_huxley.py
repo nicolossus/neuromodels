@@ -1,778 +1,411 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import inspect
-
+import matplotlib.pyplot as plt
 import numpy as np
-from neuromodels.utils import compute_q10_correction, vtrap
-from scipy.integrate import solve_ivp
-from scipy.interpolate import interp1d
-
-
-class ODEsNotSolved(Exception):
-    """Failed attempt at accessing solutions.
-
-    A call to the ODE systems solve method must be
-    carried out before the solution properties
-    can be used.
-    """
-    pass
+import pandas as pd
+from matplotlib import gridspec
+from neuromodels.solvers import HodgkinHuxleySolver
+from neuromodels.statistics import SpikeStats
 
 
 class HodgkinHuxley:
-    r"""Class for representing the original Hodgkin-Huxley model.
-
-    The Hodgkin–Huxley model describes how action potentials in neurons are
-    initiated and propagated. From a biophysical point of view, action
-    potentials are the result of currents that pass through ion channels in
-    the cell membrane. In an extensive series of experiments on the giant axon
-    of the squid, Hodgkin and Huxley succeeded to measure these currents and
-    to describe their dynamics in terms of differential equations.
-
-    This class implements the original Hodgkin-Huxley model for the
-    sodium, potassium and leakage channels found in the squid giant axon
-    membrane. Membrane voltage is in absolute mV and has been reversed in
-    polarity from the original HH convention and shifted to reflect a resting
-    potential of -65 mV.
-
-    All model parameters can be accessed (get or set) as class attributes.
-    Solutions are available as class attributes after calling the class method
-    :meth:`solve`.
-
-    Parameters
-    ----------
-    V_rest : :obj:`float`
-        Resting potential of neuron in units :math:`mV`, default=-65.0.
-    Cm : :obj:`float`
-        Membrane capacitance in units :math:`\mu F/cm^2`, default=1.0.
-    gbar_K : :obj:`float`
-        Potassium conductance in units :math:`mS/cm^2`, default=36.0.
-    gbar_Na : :obj:`float`
-        Sodium conductance in units :math:`mS/cm^2`, default=120.0.
-    gbar_L : :obj:`float`
-        Leak conductance in units :math:`mS/cm^2`, default=0.3.
-    E_K : :obj:`float`
-        Potassium reversal potential in units :math:`mV`, default=-77.0.
-    E_Na : :obj:`float`
-        Sodium reversal potential in units :math:`mV`, default=50.0.
-    E_L : :obj:`float`
-        Leak reversal potential in units :math:`mV`, default=-54.4.
-    degC : :obj:`float`
-        Temperature when recording (should be to set a squid-appropriate
-        temperature) in units :math:`^{\circ}C`, default=6.3.
-
-    Attributes
-    ----------
-    V_rest : :obj:`float`
-        **Model parameter:** Resting potential.
-    Cm : :obj:`float`
-        **Model parameter:** Membrane capacitance.
-    gbar_K : :obj:`float`
-        **Model parameter:** Potassium conductance.
-    gbar_Na : :obj:`float`
-        **Model parameter:** Sodium conductance.
-    gbar_L : :obj:`float`
-        **Model parameter:** Leak conductance.
-    E_K : :obj:`float`
-        **Model parameter:** Potassium reversal potential.
-    E_Na : :obj:`float`
-        **Model parameter:** Sodium reversal potential.
-    E_L : :obj:`float`
-        **Model parameter:** Leak reversal potential.
-    degC : :obj:`float`
-        **Model parameter:** Temperature when recording in degrees Celsius.
-    t : :term:`ndarray`
-        **Solution:** Array of time points ``t``.
-    V : :term:`ndarray`
-        **Solution:** Array of voltage values ``V`` at ``t``.
-    n : :term:`ndarray`
-        **Solution:** Array of state variable values ``n`` at ``t``.
-    m : :term:`ndarray`
-        **Solution:** Array of state variable values ``m`` at ``t``.
-    h : :term:`ndarray`
-        **Solution:** Array of state variable values ``h`` at ``t``.
-
-    Notes
-    -----
-    Default parameter values as given by Hodgkin and Huxley [1]_.
-
-    References
-    ----------
-    .. [1] A. L. Hodgkin, A. F. Huxley, "A quantitative description of membrane
-           current and its application to conduction and excitation in nerve",
-           J. Physiol. 117, pp. 500-544, 1952.
-
-    Examples
-    --------
-
-    .. plot::
-
-        import matplotlib.pyplot as plt
-        import neuromodels as nm
-
-        # Initialize the Hodgkin-Huxley system; model parameters can either
-        # be set in the constructor or accessed as class attributes:
-        hh = nm.HodgkinHuxley(V_rest=-70)
-        hh.gbar_K = 36
-
-        # The simulation parameters needed are the simulation time T, the time
-        # step dt, and the input stimulus, the latter either as a constant,
-        # callable with call signature `(t)` or ndarray with `shape=(int(T/dt)+1,)`:
-        T = 50.
-        dt = 0.025
-
-        def stimulus(t):
-            return 10 if 10 <= t <= 40 else 0
-
-        # The system is solved by calling the class method `solve` and the
-        # solutions can be accessed as class attributes:
-        hh.solve(stimulus, T, dt)
-        t = hh.t
-        V = hh.V
-
-        plt.plot(t, V)
-        plt.xlabel('Time [ms]')
-        plt.ylabel('Membrane potential [mV]')
-        plt.show()
+    """
+    Hodgkin-Huxley simulator model
     """
 
-    def __init__(self, V_rest=-65., Cm=1., gbar_K=36., gbar_Na=120.,
-                 gbar_L=0.3, E_K=-77., E_Na=50., E_L=-54.4, degC=6.3):
-
-        # Check model parameters
-        self._check_type_int_float(V_rest, 'V_rest')
-        self._check_capacitance(Cm, 'Cm')
-        self._check_conductances(gbar_K, 'gbar_K')
-        self._check_conductances(gbar_Na, 'gbar_Na')
-        self._check_conductances(gbar_L, 'gbar_L')
-        self._check_type_int_float(E_K, 'E_K')
-        self._check_type_int_float(E_Na, 'E_Na')
-        self._check_type_int_float(E_L, 'E_L')
-        self._check_type_int_float(degC, 'degC')
-
-        # Hodgkin-Huxley model parameters
-        self._V_rest = V_rest      # resting potential [mV]
-        self._Cm = Cm              # membrane capacitance [μF/cm**2]
-        self._gbar_K = gbar_K      # potassium conductance [mS/cm**2]
-        self._gbar_Na = gbar_Na    # sodium conductance [mS/cm**2]
-        self._gbar_L = gbar_L      # leak coductance [mS/cm**2]
-        self._E_K = E_K            # potassium reversal potential [mV]
-        self._E_Na = E_Na          # sodium reversal potential [mV]
-        self._E_L = E_L            # leak reversal potential [mV]
-        self._degC = degC          # temperature [degrees Celsius]
-
-        # Temperature coefficient (correction factor)
-        self._q10 = compute_q10_correction(q10=3, T1=6.3, T2=self._degC)
-
-    def __call__(self, t, y):
-        r"""RHS of the Hodgkin-Huxley ODEs.
-
-        Parameters
-        ----------
-        t : float
-            The time point.
-        y : tuple of floats
-            A tuple of the state variables, ``y = (V, n, m, h)``.
+    def __init__(
+            self,
+            stimulus,
+            T,
+            dt,
+            y0=None,
+            method='RK45',
+            noise=False,
+            scale_noise=0.01,
+            pdict={},
+            solver_options={},
+    ):
         """
-
-        V, n, m, h = y
-
-        dVdt = (self.I_inj(t) - self.I_K(V, n) -
-                self.I_Na(V, m, h) - self.I_L(V)) / self._Cm
-        dndt = (self.n_inf(V) - n) / self.tau_n(V)
-        dmdt = (self.m_inf(V) - m) / self.tau_m(V)
-        dhdt = (self.h_inf(V) - h) / self.tau_h(V)
-
-        return [dVdt, dndt, dmdt, dhdt]
-
-    # Membrane currents
-    def I_K(self, V, n):
-        """Potassium current.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-        n : :obj:`float` or :term:`ndarray`
-            Potassium channel state variable.
-
-        Returns
-        -------
-        I_K : :obj:`float` or :term:`ndarray`
-            Potassium current.
         """
+        self._hh = HodgkinHuxleySolver(**pdict)
+        self._stim = stimulus
+        self._T = T
+        self._dt = dt
+        self._y0 = y0
+        self._method = method
+        self._with_noise = with_noise
+        self._scale_noise = scale_noise
+        self._solver_options = solver_options
 
-        return self._gbar_K * (n**4) * (V - self._E_K)
+    def __call__(self, gbar_K=36., gbar_Na=120.):
+        self._hh.gbar_K = gbar_K
+        self._hh.gbar_Na = gbar_Na
 
-    def I_Na(self, V, m, h):
-        """Sodium current.
+        self._hh.solve(self._stim,
+                       self._T,
+                       self._dt,
+                       y0=self._y0,
+                       method=self._method,
+                       **self._solver_options
+                       )
 
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-        m : :obj:`float` or :term:`ndarray`
-            Sodium channel activation state variable.
-        h : :obj:`float` or :term:`ndarray`
-            Sodium channel inactivation state variable.
+        self._V = self._hh.V
+        self._t = self._hh.t
 
-        Returns
-        -------
-        I_Na : :obj:`float` or :term:`ndarray`
-            Sodium current.
-        """
-
-        return self._gbar_Na * (m**3) * h * (V - self._E_Na)
-
-    def I_L(self, V):
-        """Leak current.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        I_L : :obj:`float` or :term:`ndarray`
-            Leak current.
-        """
-        return self._gbar_L * (V - self._E_L)
-
-    # K channel kinetics
-    def alpha_n(self, V):
-        """Potassium channel activation forward reaction rate.
-
-        Uses the :func:`~neuromodels.utils.vtrap` function to trap for zero in
-        denominator of rate equation.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return .01 * vtrap(-(V + 55), 10)
-
-    def beta_n(self, V):
-        """Potassium channel activation backward reaction rate.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return .125 * np.exp(-(V + 65) / 80)
-
-    # Na channel kinetics (activating)
-    def alpha_m(self, V):
-        """Sodium channel activation forward reaction rate.
-
-        Uses the :func:`~neuromodels.utils.vtrap` function to trap for zero in
-        denominator of rate equation.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return .1 * vtrap(-(V + 40), 10)
-
-    def beta_m(self, V):
-        """Sodium channel activation backward reaction rate.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return 4 * np.exp(-(V + 65) / 18.)
-
-    # Na channel kinetics (inactivating)
-    def alpha_h(self, V):
-        """Sodium channel inactivation forward reaction rate.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return 0.07 * np.exp(-(V + 65) / 20.)
-
-    def beta_h(self, V):
-        """Sodium channel inactivation backward reaction rate.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        rate : :obj:`float` or :term:`ndarray`
-            Reaction rate.
-        """
-        return 1. / (1 + np.exp(-(V + 35) / 10.))
-
-    # steady-states and time constants
-    def n_inf(self, V):
-        """Potassium channel activation steady state.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        steady_state : :obj:`float` or :term:`ndarray`
-            Steady state.
-        """
-        return self.alpha_n(V) / (self.alpha_n(V) + self.beta_n(V))
-
-    def tau_n(self, V):
-        """Potassium channel activation time constant.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        time_constant : :obj:`float` or :term:`ndarray`
-            Time constant.
-        """
-        return 1. / (self._q10 * (self.alpha_n(V) + self.beta_n(V)))
-
-    def m_inf(self, V):
-        """Sodium channel activation steady state.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        steady_state : :obj:`float` or :term:`ndarray`
-            Steady state.
-        """
-        return self.alpha_m(V) / (self.alpha_m(V) + self.beta_m(V))
-
-    def tau_m(self, V):
-        """Sodium channel activation time constant.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        time_constant : :obj:`float` or :term:`ndarray`
-            Time constant.
-        """
-        return 1. / (self._q10 * (self.alpha_m(V) + self.beta_m(V)))
-
-    def h_inf(self, V):
-        """Sodium channel inactivation steady state.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        steady_state : :obj:`float` or :term:`ndarray`
-            Steady state.
-        """
-        return self.alpha_h(V) / (self.alpha_h(V) + self.beta_h(V))
-
-    def tau_h(self, V):
-        """Sodium channel inactivation time constant.
-
-        Parameters
-        ----------
-        V : :obj:`float` or :term:`ndarray`
-            Membrane potential.
-
-        Returns
-        -------
-        time_constant : :obj:`float` or :term:`ndarray`
-            Time constant.
-        """
-        return 1. / (self._q10 * (self.alpha_h(V) + self.beta_h(V)))
+        return self._V, self._t
 
     @property
-    def _initial_conditions(self):
-        """Default Hodgkin-Huxley model initial conditions."""
-        n0 = self.n_inf(self.V_rest)
-        m0 = self.m_inf(self.V_rest)
-        h0 = self.h_inf(self.V_rest)
-        return (self.V_rest, n0, m0, h0)
+    def stimulus_array(self):
+        if isinstance(self._stim, (int, float)):
+            stim_array = np.ones(self._t.shape) * self._stim
+        elif callable(self._stim):
+            stim_array = np.array([self._stim(ti) for ti in self._t])
+        elif isinstance(stim, np.ndarray):
+            stim_array = stim
+        return stim_array
 
-    def solve(self, stimulus, T, dt, y0=None, method='RK45', **kwargs):
-        r"""Solve the Hodgkin-Huxley equations.
-
-        The equations are solved on the interval ``(0, T]`` and the solutions
-        evaluted at a given interval. The solutions are not returned, but
-        stored as class attributes.
-
-        If multiple calls to solve are made, they are treated independently,
-        with the newest one overwriting any old solution data.
-
-        The solver only accepts ``stimulus`` as either a scalar
-        (:obj:`int` or :obj:`float`), :obj:`callable` or :term:`ndarray`. If
-        :obj:`callable`, the call signature must be one and only one positional
-        argument, e.g. ``(t)``. Kewword arguments are allowed in passed
-        callables. When passed as :term:`ndarray`, stimulus must have shape
-        ``(int(T/dt)+1).``
-
-        Parameters
-        ----------
-        stimulus : {:obj:`int`, :obj:`float`}, :obj:`callable` or :term:`ndarray`, shape=(int(T/dt)+1,)
-            Input stimulus in units :math:`\mu A/cm^2`. If callable, the call
-            signature must be ``(t)``.
-        T : :obj:`float`
-            End time in milliseconds (:math:`ms`).
-        dt : :obj:`float`
-            Time step where solutions are evaluated.
-        y0 : :term:`array_like`, shape=(4,)
-            Initial state of state variables ``V``, ``n``, ``m``, ``h``. If None,
-            the default Hodgkin-Huxley model's initial conditions will be used;
-            :math:`y_0 = (V_0, n_0, m_0, h_0) = (V_{rest}, n_\infty(V_0), m_\infty(V_0), h_\infty(V_0))`.
-        method : :obj:`str`
-            Integration method to use. Description from the
-            :obj:`scipy.integrate.solve_ivp` documentation:
-                * 'RK45' (default): Explicit Runge-Kutta method of order 5(4) [1]_.
-                  The error is controlled assuming accuracy of the fourth-order
-                  method, but steps are taken using the fifth-order accurate
-                  formula (local extrapolation is done). A quartic interpolation
-                  polynomial is used for the dense output [2]_. Can be applied in
-                  the complex domain.
-                * 'RK23': Explicit Runge-Kutta method of order 3(2) [3]_. The error
-                  is controlled assuming accuracy of the second-order method, but
-                  steps are taken using the third-order accurate formula (local
-                  extrapolation is done). A cubic Hermite polynomial is used for the
-                  dense output. Can be applied in the complex domain.
-                * 'DOP853': Explicit Runge-Kutta method of order 8 [13]_.
-                  Python implementation of the "DOP853" algorithm originally
-                  written in Fortran [14]_. A 7-th order interpolation polynomial
-                  accurate to 7-th order is used for the dense output.
-                  Can be applied in the complex domain.
-                * 'Radau': Implicit Runge-Kutta method of the Radau IIA family of
-                  order 5 [4]_. The error is controlled with a third-order accurate
-                  embedded formula. A cubic polynomial which satisfies the
-                  collocation conditions is used for the dense output.
-                * 'BDF': Implicit multi-step variable-order (1 to 5) method based
-                  on a backward differentiation formula for the derivative
-                  approximation [5]_. The implementation follows the one described
-                  in [6]_. A quasi-constant step scheme is used and accuracy is
-                  enhanced using the NDF modification. Can be applied in the
-                  complex domain.
-                * 'LSODA': Adams/BDF method with automatic stiffness detection and
-                  switching [7]_, [8]_. This is a wrapper of the Fortran solver
-                  from ODEPACK.
-        **kwargs
-            Arbitrary keyword arguments are passed along to
-            :obj:`scipy.integrate.solve_ivp`.
-
-        Notes
-        -----
-        The ODEs are solved numerically using the function :obj:`scipy.integrate.solve_ivp`.
-
-        If ``stimulus`` is passed as an array, it and the time array, defined by
-        ``T`` and ``dt``, will be used to create an interpolation function via
-        :obj:`scipy.interpolate.interp1d`.
-
-        ``solve_ivp`` is an ODE solver with adaptive step size. If the keyword
-        argument ``first_step`` is not specified, the solver will empirically
-        select an initial step size with the function ``select_initial_step``
-        (found here https://github.com/scipy/scipy/blob/master/scipy/integrate/_ivp/common.py#L64).
-
-        This function calculates two proposals and returns the smallest. It first
-        calculates an intermediate proposal, ``h0``, that is based on the initial
-        condition (``y0``) and the ODE's RHS evaluated for the initial condition
-        (``f0``). For the standard Hodgkin-Huxley model, however, this estimated
-        step size will be very large due to unfortunate circumstances (because ``norm(y0) > 0``
-        while ``norm(f0) ~= 0``). Since ``h0`` only is an intermediate calculation,
-        it is not used or returned by the solver. However, it is used to calculate
-        the next proposal, ``h1``, by calling the RHS. Normally, this procedure
-        poses no problem, but can fail if an object with a limited interval is
-        present in the RHS, such as an ``interp1d`` object.
-
-        In the case of the standard Hodgkin-Huxley model, one might be tempted
-        to pass the stimulus as an array to the solver. In order for ``solve_ivp``
-        to be able to evaluate the stimulus, it must be passed as a callable or
-        constant. Thus, if an array is passed to the solver, an interpolation
-        function must be created, in this implementation done with ``interp1d``,
-        for ``solve_ivp`` to be able to evaluate it. For the reasons explained
-        above, the program will hence terminate unless the ``first_step`` keyword
-        is specified and is set to a sufficiently small value. In this
-        implementation, ``first_step=dt`` is already set in ``solve_ivp``.
-
-        The ``solve_ivp`` keyword ``max_step`` should be considered to be specified
-        for stimuli over short time spans, in order to ensure that the solver
-        does not step over them.
-
-        Note that ``first_step`` still needs to specified even if ``max_step`` is.
-        ``select_initial_step`` will be called regardless if ``first_step`` is not
-        specified, and the calls for calculating ``h1`` will be done before checking
-        whether ``h0`` is larger than than the max allowed step size or not. Thus
-        will only specifying ``max_step`` still result in program termination if
-        ``stimulus`` is passed as an array. (Will not be a problem in this
-        implementation since ``first_step`` is already specified.)
-
-        References
-        ----------
-        .. [1] J. R. Dormand, P. J. Prince, "A family of embedded Runge-Kutta
-               formulae", Journal of Computational and Applied Mathematics, Vol. 6,
-               No. 1, pp. 19-26, 1980.
-        .. [2] L. W. Shampine, "Some Practical Runge-Kutta Formulas", Mathematics
-               of Computation,, Vol. 46, No. 173, pp. 135-150, 1986.
-        .. [3] P. Bogacki, L.F. Shampine, "A 3(2) Pair of Runge-Kutta Formulas",
-               Appl. Math. Lett. Vol. 2, No. 4. pp. 321-325, 1989.
-        .. [4] E. Hairer, G. Wanner, "Solving Ordinary Differential Equations II:
-               Stiff and Differential-Algebraic Problems", Sec. IV.8.
-        .. [5] `Backward Differentiation Formula
-                <https://en.wikipedia.org/wiki/Backward_differentiation_formula>`_
-                on Wikipedia.
-        .. [6] L. F. Shampine, M. W. Reichelt, "THE MATLAB ODE SUITE", SIAM J. SCI.
-               COMPUTE., Vol. 18, No. 1, pp. 1-22, January 1997.
-        .. [7] A. C. Hindmarsh, "ODEPACK, A Systematized Collection of ODE
-               Solvers," IMACS Transactions on Scientific Computation, Vol 1.,
-               pp. 55-64, 1983.
-        .. [8] L. Petzold, "Automatic selection of methods for solving stiff and
-               nonstiff systems of ordinary differential equations", SIAM Journal
-               on Scientific and Statistical Computing, Vol. 4, No. 1, pp. 136-148,
-               1983.
-        """
-
-        # error-handling
-        self._check_solver_input(dt, 'dt')
-        self._check_solver_input(T, 'T')
-
-        # times at which to store the computed solutions
-        t_eval = np.arange(0, T + dt, dt)
-
-        if y0 is None:
-            # use default HH initial conditions
-            y0 = self._initial_conditions
-
-        # handle the passed stimulus
-        if isinstance(stimulus, (int, float)):
-            self.I_inj = lambda t: stimulus
-
-        elif callable(stimulus):
-            sig = inspect.signature(stimulus)
-            free_params_in_signature = 0
-            for param in sig.parameters.values():
-                if (param.kind == param.POSITIONAL_OR_KEYWORD and
-                        param.default is param.empty):
-                    free_params_in_signature += 1
-            if free_params_in_signature > 1:
-                msg = ("Callable can only take one positional argument.")
-                raise TypeError(msg)
-
-            self.I_inj = stimulus
-
-        elif isinstance(stimulus, np.ndarray):
-            if not stimulus.shape == t_eval.shape:
-                msg = ("stimulus numpy.ndarray must have shape (int(T/dt)+1)")
-                raise ValueError(msg)
-            # Interpolate stimulus
-            self.I_inj = interp1d(x=t_eval, y=stimulus)  # linear spline
-
-        else:
-            msg = ("'stimulus' must be either a scalar (int or float), "
-                   "callable function of t or a numpy.ndarray of shape "
-                   "(int(T/dt)+1)")
-            raise TypeError(msg)
-
-        # solve HH ODEs
-        solution = solve_ivp(self,
-                             t_span=(0, T),
-                             y0=y0,
-                             t_eval=t_eval,
-                             first_step=dt,
-                             method=method,
-                             **kwargs)
-
-        # store solutions
-        self._time = solution.t
-        self._V = solution.y[0]
-        self._n = solution.y[1]
-        self._m = solution.y[2]
-        self._h = solution.y[3]
-
-    # Check user input
-    def _check_type_int_float(self, parameter, name):
-        if not isinstance(parameter, (int, float)):
-            msg = (f"{name} must be set as an int or float.")
-            raise TypeError(msg)
-
-    def _check_capacitance(self, parameter, name):
-        self._check_type_int_float(parameter, name)
-        if parameter <= 0:
-            msg = ("Capacitance must be strictly positive.")
-            raise ValueError(msg)
-
-    def _check_conductances(self, parameter, name):
-        self._check_type_int_float(parameter, name)
-        if parameter < 0:
-            msg = ("Conductances must be non-negative.")
-            raise ValueError(msg)
-
-    def _check_solver_input(self, parameter, name):
-        if not isinstance(parameter, (int, float)):
-            msg = (f"{name} must be set as an int or float.")
-            raise TypeError(msg)
-
-        if parameter <= 0:
-            msg = (f"{name} > 0 is required")
-            raise ValueError(msg)
-
-    # Get and set model parameters
+    # Model parameters
     @property
     def V_rest(self):
-        return self._V_rest
-
-    @V_rest.setter
-    def V_rest(self, V_rest):
-        self._check_type_int_float(V_rest, 'V_rest')
-        self._V_rest = V_rest
+        return self._hh.V_rest
 
     @property
     def Cm(self):
-        return self._Cm
-
-    @Cm.setter
-    def Cm(self, Cm):
-        self._check_capacitance(Cm, 'Cm')
-        self._Cm = Cm
+        return self._hh._Cm
 
     @property
     def gbar_K(self):
-        return self._gbar_K
-
-    @gbar_K.setter
-    def gbar_K(self, gbar_K):
-        self._check_conductances(gbar_K, 'gbar_K')
-        self._gbar_K = gbar_K
+        return self._hh._gbar_K
 
     @property
     def gbar_Na(self):
-        return self._gbar_Na
-
-    @gbar_Na.setter
-    def gbar_Na(self, gbar_Na):
-        self._check_conductances(gbar_Na, 'gbar_Na')
-        self._gbar_Na = gbar_Na
+        return self._hh._gbar_Na
 
     @property
     def gbar_L(self):
-        return self._gbar_L
-
-    @gbar_L.setter
-    def gbar_L(self, gbar_L):
-        self._check_conductances(gbar_L, 'gbar_L')
-        self._gbar_L = gbar_L
+        return self._hh._gbar_L
 
     @property
     def E_K(self):
-        return self._E_K
-
-    @E_K.setter
-    def E_K(self, E_K):
-        self._check_type_int_float(E_K, 'E_K')
-        self._E_K = E_K
+        return self._hh._E_K
 
     @property
     def E_Na(self):
-        return self._E_Na
-
-    @E_Na.setter
-    def E_Na(self, E_Na):
-        self._check_type_int_float(E_Na, 'E_Na')
-        self._E_Na = E_Na
+        return self._hh._E_Na
 
     @property
     def E_L(self):
-        return self._E_L
-
-    @E_L.setter
-    def E_L(self, E_L):
-        self._check_type_int_float(E_L, 'E_L')
-        self._E_L = E_L
+        return self._hh._E_L
 
     @property
     def degC(self):
-        return self._degC
-
-    @degC.setter
-    def degC(self, degC):
-        self._check_type_int_float(degC, 'degC')
-        self._degC = degC
-        # Recompute correction factor
-        self._q10 = compute_q10_correction(q10=3, T1=6.3, T2=self._degC)
+        return self._hh._degC
 
     # Solutions
     @property
     def t(self):
-        try:
-            return self._time
-        except AttributeError as e:
-            raise ODEsNotSolved("Missing call to solve. No solution exists.")
+        return self._hh._time
 
     @property
     def V(self):
-        try:
-            return self._V
-        except AttributeError:
-            raise ODEsNotSolved("Missing call to solve. No solution exists.")
+        return self._hh._V
 
     @property
     def n(self):
-        try:
-            return self._n
-        except AttributeError:
-            raise ODEsNotSolved("Missing call to solve. No solution exists.")
+        return self._hh._n
 
     @property
     def m(self):
-        try:
-            return self._m
-        except AttributeError:
-            raise ODEsNotSolved("Missing call to solve. No solution exists.")
+        return self._hh._m
 
     @property
     def h(self):
-        try:
-            return self._h
-        except AttributeError:
-            raise ODEsNotSolved("Missing call to solve. No solution exists.")
+        return self._hh._h
+
+    def summary_stats(self, t_stim_on, t_stim_off, threshold=0, stats=None):
+        sps = SpikeStats(t_stim_on, t_stim_off, threshold, stats)
+        return sps(self._V, self._t)
+
+    def stats_df(self, t_stim_on, t_stim_off, threshold=0, stats=None):
+        """
+
+        """
+        stat_labels = []
+        for stat in stats:
+            if stat == "n_spikes":
+                stat = "Number of spikes"
+            else:
+                stat = stat[0].upper() + stat[1:]
+                stat = stat.replace("_", " ")
+            stat_labels.append(stat)
+
+        sps = SpikeStats(t_stim_on, t_stim_off, threshold, stats)
+        stats_data = dict(zip(stat_labels, sps(self._V, self._t)))
+        df = pd.DataFrame.from_dict(stats_data, orient='index').reset_index()
+        df.columns = ['Statistic', 'Value']
+        return df
+
+    def plot_voltage_trace(
+            self,
+            with_stim=True,
+            lw=1.5,
+            figsize=(6, 4),
+            dpi=150,
+            savefig=None,
+            **kwargs
+    ):
+        """
+        """
+        if with_stim:
+            fig = plt.figure(figsize=figsize, tight_layout=True, dpi=dpi)
+            gs = gridspec.GridSpec(2, 1, height_ratios=[4, 2])
+
+            ax = plt.subplot(gs[0])
+            ax.plot(self.t, self.V, lw=lw, **kwargs)
+            ax.set_ylabel('Membrane Potential (mV)')
+            ax.axes.xaxis.set_ticklabels([])
+            # ax.set_xticks([])
+            # ax.set_yticks([-70, -20, 30])
+
+            ax = plt.subplot(gs[1])
+            plt.plot(self.t, self.stimulus_array, 'k', lw=lw, **kwargs)
+            plt.xlabel('Time (ms)')
+            plt.ylabel(r'Stimulus ($\mu \mathrm{A/cm}^2$)')
+            # ax.set_xticks([0, 10, 25, 40, np.max(t)])
+            # ax.set_yticks([0, np.max(stimulus)])
+
+            # plt.show()
+        else:
+            fig, ax = plt.subplots(nrows=1,
+                                   ncols=1,
+                                   figsize=figsize,
+                                   tight_layout=True,
+                                   dpi=dpi
+                                   )
+            ax.plot(self.t, self.V, **kwargs)
+            ax.set(xlabel="Time (ms)",
+                   ylabel="Membrane Potential (mV)"
+                   )
+
+        return ax
+
+    def plot_rates(self, rates_only=False, savefig=None):
+        pass
+        # fig = plt.figure(figsize=(7, 5), tight_layout=True, dpi=300)
+        gs = gridspec.GridSpec(2, 1, height_ratios=[4, 2])
+
+        ax = plt.subplot(gs[0])
+        plt.plot(t, V)
+        plt.ylabel('Membrane Potential (mV)')
+        # ax.set_xticks([])
+        # ax.set_yticks([-70, -20, 30])
+
+        ax = plt.subplot(gs[1])
+        plt.plot(t, n, label='$n$')
+        plt.plot(t, m, label='$m$')
+        plt.plot(t, h, label='$h$')
+        plt.ylabel("State")
+        plt.legend(loc='upper right')
+        ax.set_xticks([])
+        ax.set_yticks([0.0, 0.5, 1.0])
+
+        ax = plt.subplot(gs[2])
+        plt.plot(t, stimulus, 'k')
+        plt.xlabel('Time (ms)')
+        plt.ylabel('Stimulus (nA)')
+        ax.set_xticks([0, 10, 25, 40, np.max(t)])
+        ax.set_yticks([0, np.max(stimulus)])
+
+    def plot_spike_statistics(
+        self,
+        t_stim_on,
+        t_stim_off,
+        threshold=0,
+        figsize=(6, 4),
+        dpi=150,
+        savefig=None
+    ):
+        V = self.V
+        t = self.t
+        sps = SpikeStats(t_stim_on, t_stim_off, threshold)
+        # plot voltage trace with features
+        spikes = sps.find_spikes(V, t)
+        n_spikes = spikes["n_spikes"]
+
+        if n_spikes < 3:
+            msg = ("At least 3 spikes are needed in voltage trace in order "
+                   "to plot spike statistics")
+            raise RuntimeError(msg)
+
+        spike_idxs = spikes["spike_idxs"]
+        spike_heights = spikes["spike_heights"]
+        width_lines = sps.width_lines(V, t)
+        ahp_depth_idxs = sps.AHP_depth_positions(V, t)
+
+        fig = plt.figure(figsize=figsize, tight_layout=True, dpi=dpi)
+        gs = gridspec.GridSpec(2, 1, height_ratios=[4, 2])
+        ax0 = plt.subplot(gs[0])
+
+        # voltage trace
+        ax0.plot(t,
+                 V,
+                 lw=1.5,
+                 label='Voltage trace'
+                 )
+
+        # AP overshoot
+        ax0.plot(t[spike_idxs],
+                 V[spike_idxs],
+                 "x",
+                 ms=7,
+                 color='black',
+                 label='AP overshoot'
+                 )
+
+        # AP widths
+        ax0.hlines(*width_lines,
+                   color="red",
+                   lw=2,
+                   label='AP width'
+                   )
+
+        # AHP depths
+        ax0.plot(t[ahp_depth_idxs],
+                 V[ahp_depth_idxs],
+                 'o',
+                 ms=5,
+                 color='indianred',
+                 label='AHP depth'
+                 )
+
+        # latency to first spike
+        ax0.hlines(self.V_rest,
+                   t_stim_on,
+                   t[spike_idxs[0]],
+                   color='black',
+                   lw=1.5,
+                   ls=":"
+                   )
+        ax0.vlines(t[spike_idxs[0]],
+                   self.V_rest,
+                   spike_heights[0],
+                   color='black',
+                   lw=1.5,
+                   ls=":",
+                   label="Latency to first spike"
+                   )
+
+        # spike rate; mark spike locations
+        for i in range(n_spikes):
+            if i == 0:
+                ax0.vlines(t[spike_idxs[i]],
+                           V[spike_idxs[i]],
+                           48,
+                           color='darkorange',
+                           ls='--',
+                           label='Spike rate'
+                           )
+            else:
+                ax0.vlines(t[spike_idxs[i]],
+                           V[spike_idxs[i]],
+                           48,
+                           color='darkorange',
+                           ls='--'
+                           )
+        # the marked ISIs are used to compute the accommodation index
+        # ISI arrow legend
+        ax0.plot([],
+                 [],
+                 color='g',
+                 marker=r'$\longleftrightarrow$',
+                 linestyle='None',
+                 markersize=15,
+                 label='ISIs'
+                 )
+        for i in range(n_spikes - 1):
+            ax0.annotate('',
+                         xy=(t[spike_idxs[i]], 48),
+                         xycoords='data',
+                         xytext=(t[spike_idxs[i + 1]], 48),
+                         textcoords='data',
+                         arrowprops={'arrowstyle': '<->', 'color': 'g'}
+                         )
+
+        ax0.set_ylabel('Membrane Potential (mV)')
+        ax0.axes.xaxis.set_ticklabels([])
+
+        #plt.ylim(-90, 60)
+        # ax.set_xticks([])
+        #ax.set_yticks([-80, -20, 40])
+        handles, labels = ax0.get_legend_handles_labels()
+        ax0.legend(handles,
+                   labels,
+                   loc='center left',
+                   bbox_to_anchor=(1.04, 0.5),
+                   fancybox=True,
+                   borderaxespad=0.1,
+                   ncol=1
+                   )
+
+        ax1 = plt.subplot(gs[1])
+        ax1.plot(t, self.stimulus_array, 'k', lw=2)
+        ax1.set(xlabel='Time (ms)',
+                ylabel=r'Stimulus ($\mu \mathrm{A/cm}^2$)'
+                )
+        # ax1.yaxis.set_major_formatter(mpl.ticker.FormatStrFormatter('%.2f'))
+
+        fig.suptitle("Spike Statistics")
+        # plt.show()
+
+
+if __name__ == "__main__":
+    import seaborn as sns
+
+    # Set fontsizes in figures
+    params = {'legend.fontsize': 'large',
+              'axes.labelsize': 'large',
+              'axes.titlesize': 'large',
+              'xtick.labelsize': 'large',
+              'ytick.labelsize': 'large',
+              'legend.fontsize': 'large',
+              'legend.handlelength': 2}
+    plt.rcParams.update(params)
+    plt.rc('text', usetex=True)
+
+    sns.set(context="paper", style='whitegrid', rc={"axes.facecolor": "0.99"})
+
+    class ConstantStimulus:
+        def __init__(self, I_amp, t_stim_on, t_stim_off):
+            self.I_amp = I_amp
+            self.t_stim_on = t_stim_on
+            self.t_stim_off = t_stim_off
+
+        def __call__(self, t):
+            return self.I_amp if self.t_stim_on <= t <= self.t_stim_off else 0
+
+    T = 120     # Simulation time [ms]
+    dt = 0.025  # Time step
+    I_amp = 10
+    t_stim_on = 20
+    t_stim_off = 100
+
+    stimulus = ConstantStimulus(I_amp, t_stim_on, t_stim_off)
+    # stimulus = 10
+    hh = HodgkinHuxley(stimulus, T, dt)
+    V, t = hh(gbar_K=36., gbar_Na=120.)
+
+    stats = ["n_spikes",
+             "spike_rate",
+             "latency_to_first_spike",
+             "average_AP_overshoot",
+             "average_AHP_depth",
+             "average_AP_width",
+             "accommodation_index"]
+
+    sum_stats = hh.stats_df(t_stim_on, t_stim_off, stats=stats)
+
+    #hh.plot_spike_statistics(t_stim_on, t_stim_off)
+    # print(sum_stats)
+
+    # hh.plot_voltage_trace(with_stim=True)
+    plt.show()
