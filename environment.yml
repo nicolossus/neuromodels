@@ -27,3 +27,4 @@ dependencies:
     - quantities
     - viziphant
     - pydot
+    - .
