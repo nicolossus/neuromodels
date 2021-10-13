@@ -85,12 +85,12 @@ class BrunelNetwork:
             eta=2.0,
             g=10.0,
             J=0.1,
-            C_m=250,
-            V_rest=0,
-            V_th=20,
-            V_reset=10,
-            tau_m=20,
-            tau_rp=2,
+            C_m=250.,
+            V_rest=0.,
+            V_th=20.,
+            V_reset=10.,
+            tau_m=20.,
+            tau_rp=2.,
             tau_syn=0.5,
             D=1.5
     ):
@@ -248,8 +248,12 @@ class BrunelNetwork:
         # file written by the recorder. Since two devices are created, we
         # supply a list of dictionaries.
         # nest.SetDefaults('spike_recorder', {'to_file': self._to_file})
-
+        '''
         self._spikes = nest.Create("spike_recorder", 2,
+                                   [{"label": 'brunel-py-ex'},
+                                    {"label": 'brunel-py-in'}])
+        '''
+        self._spikes = nest.Create("spike_detector", 2,
                                    [{"label": 'brunel-py-ex'},
                                     {"label": 'brunel-py-in'}])
         self._espikes = self._spikes[:1]

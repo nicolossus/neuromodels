@@ -33,11 +33,11 @@ class HodgkinHuxley:
         self._dt = dt
         self._y0 = y0
         self._method = method
-        self._with_noise = with_noise
+        #self._with_noise = with_noise
         self._scale_noise = scale_noise
         self._solver_options = solver_options
 
-    def __call__(self, gbar_K=36., gbar_Na=120.):
+    def __call__(self, gbar_K=36., gbar_Na=120., batch_size=1, random_state=None):
         self._hh.gbar_K = gbar_K
         self._hh.gbar_Na = gbar_Na
 
