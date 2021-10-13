@@ -24,27 +24,29 @@ jobs:
       with:
         persist-credentials: false
 
-    - name: Setup Miniconda using Python ${{ matrix.python-version }}
-      uses: goanpeca/setup-miniconda@v1
-      with:
-        activate-environment: nm-dev
-        environment-file: environment.yml
-        python-version: ${{ matrix.python-version }}
-        auto-activate-base: false
-
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Build
-      shell: bash -l {0}
+    - name: Install dependencies
       run: |
-        pip install -e .[dev]
+        $CONDA/bin/conda env update --file environment.yml --name base
+      #uses: goanpeca/setup-miniconda@v1
+      #with:
+      #  activate-environment: nm-dev
+      #  environment-file: environment.yml
+      #  python-version: ${{ matrix.python-version }}
+      #  auto-activate-base: false
+
+    #- uses: actions/checkout@v2
+    #- name: Set up Python ${{ matrix.python-version }}
+    #  uses: actions/setup-python@v2
+    #  with:
+    #    python-version: ${{ matrix.python-version }}
+
+    #- name: Build
+    #  shell: bash -l {0}
+    #  run: |
+    #    pip install -e .[dev]
     - name: Test with pytest
-      shell: bash -l {0}
-      run: pytest
+      run: |
+        $CONDA/bin/pytest
 
     #- name: Install dependencies
     #  run: |
