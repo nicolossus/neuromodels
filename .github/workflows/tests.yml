@@ -27,6 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         $CONDA/bin/conda env update --file environment.yml --name base
+        $CONDA/bin/pip install .
       #uses: goanpeca/setup-miniconda@v1
       #with:
       #  activate-environment: nm-dev
