@@ -1,7 +1,11 @@
-import neuromodels as nm
-import numpy as np
-import pytest
-from neuromodels.models import ODEsNotSolved
+import numpy as np  # isort:skip
+import pytest  # isort:skip
+
+test_path = os.path.dirname(os.path.abspath(__file__))  # noqa  # isort:skip
+sys.path.append(test_path + '/../neuromodels')  # noqa  # isort:skip
+
+import neuromodels  # isort:skip
+from neuromodels.models import ODEsNotSolved  # isort:skip
 
 
 def test_all_property_raises():
