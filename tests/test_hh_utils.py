@@ -1,3 +1,5 @@
+import os
+
 import numpy as np  # isort:skip
 import pytest  # isort:skip
 
