@@ -7,8 +7,8 @@ import pytest  # isort:skip
 test_path = os.path.dirname(os.path.abspath(__file__))  # noqa  # isort:skip
 sys.path.append(test_path + '/../neuromodels')  # noqa  # isort:skip
 
-import neuromodels  # isort:skip
-from neuromodels.models import ODEsNotSolved  # isort:skip
+import solvers  # isort:skip
+from solvers import ODEsNotSolved  # isort:skip
 
 
 def test_all_property_raises():
@@ -19,7 +19,7 @@ def test_all_property_raises():
     """
     props = ['t', 'V', 'n', 'm', 'h', ]
 
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     raises = 0
     for prop in props:
         try:
@@ -38,7 +38,7 @@ def test_all_property_setter_raises(value):
     """
     props = ['V_rest', 'Cm', 'gbar_K', 'gbar_Na',
              'gbar_L', 'E_K', 'E_Na', 'E_L', 'degC', ]
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     raises = 0
     for prop in props:
         try:
@@ -55,7 +55,7 @@ def test_conductances_raises():
     set as negative.
     """
     props = ['gbar_K', 'gbar_Na', 'gbar_L', ]
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     raises = 0
     for prop in props:
         try:
@@ -71,7 +71,7 @@ def test_capacitance_raises(value):
 
     Capacitance must be strictly positive and should raise a ValueError if not.
     """
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     with pytest.raises(ValueError):
         setattr(hh, 'Cm', value)
 
@@ -96,7 +96,7 @@ def test_solver_time_arguments(T, dt, exception):
     def stimulus(t):
         return 10
 
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     with pytest.raises(exception):
         hh.solve(stimulus, T, dt)
 
@@ -115,7 +115,7 @@ def test_rest_state(state_param, ic_index):
     def stimulus(t):
         return 0
 
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
     hh.solve(stimulus, 50, 0.01)
     observed = hh.V
     observed = getattr(hh, state_param)
@@ -144,7 +144,7 @@ def test_stimulus(stimulus, should_raise):
     """
     T = 50
     dt = 0.025
-    hh = nm.HodgkinHuxley()
+    hh = solvers.HodgkinHuxleySolver()
 
     is_raised = False
     try:
