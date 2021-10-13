@@ -21,6 +21,7 @@ dependencies:
   - yapf
   - nest-simulator=2.20.2=*
   - pip:
+    - pytest
     - neo
     - elephant
     - quantities
