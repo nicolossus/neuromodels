@@ -9,23 +9,20 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>3.8
   - pip
   - numpy
   - matplotlib
   - scipy
   - pandas
   - seaborn
-  - numba
-  - cython
   - pytest
   - autopep8
   - isort
   - yapf
-  - scikit-learn
-  - jupyter
-  - jupyter_contrib_nbextensions
-  - cython
-  - nest-simulator
-  #- nest-simulator=*=mpi_openmpi*
-  - lfpy
+  - nest-simulator=2.20.2=*
+  - pip:
+    - neo
+    - elephant
+    - quantities
+    - viziphant
+    - pydot
