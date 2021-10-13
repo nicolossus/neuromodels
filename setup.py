@@ -19,6 +19,12 @@ REQUIRES_INSTALL = [
     "numpy",
     "matplotlib",
     "scipy",
+    "pandas",
+    "seaborn",
+    "neo",
+    "quantities",
+    "elephant",
+    "viziphant"
 ]
 
 REQUIRES_EXTRAS = {
