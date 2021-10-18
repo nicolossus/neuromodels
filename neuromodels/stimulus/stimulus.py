@@ -4,6 +4,16 @@
 import numpy as np
 
 
+class Constant:
+    def __init__(self, I_amp, t_stim_on, t_stim_off):
+        self.I_amp = I_amp
+        self.t_stim_on = t_stim_on
+        self.t_stim_off = t_stim_off
+
+    def __call__(self, t):
+        return self.I_amp if self.t_stim_on <= t <= self.t_stim_off else 0
+
+
 def simple(t):
     t_stim_on = 10
     t_stim_off = 110
