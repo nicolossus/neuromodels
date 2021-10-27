@@ -51,7 +51,55 @@ class NetworkNotSimulated(Exception):
     pass
 
 
-class BrunelNetwork:
+'''
+def brunel_network(eta=2, g=2, delay=1.5, J=0.1):
+
+    # Network parameters
+    N_rec = 20             # Record from 20 neurons
+    simulation_end = 1000  # Simulation time
+
+    tau_m = 20.0           # Time constant of membrane potential in ms
+    V_th = 20.0
+    N_E = 10000            # Number of excitatory neurons
+    N_I = 2500             # Number of inhibitory neurons
+    N_neurons = N_E + N_I  # Number of neurons in total
+    C_E = int(N_E/10)      # Number of excitatory synapses per neuron
+    C_I = int(N_I/10)      # Number of inhibitory synapses per neuron
+    J_I = -g*J             # Amplitude of inhibitory postsynaptic current
+    cutoff = 100           # Cutoff to avoid transient effects, in ms
+
+
+
+    nest.ResetKernel()
+
+    # Configure kernel
+    nest.SetKernelStatus({"grng_seed": 10})
+
+    nest.SetDefaults('iaf_psc_delta',
+                     {'C_m': 1.0,
+                      'tau_m': tau_m,
+                      't_ref': 2.0,
+                      'E_L': 0.0,
+                      'V_th': V_th,
+                      'V_reset': 10.0})
+
+###
+order=100,
+epsilon=0.1,     # OK
+eta=2.0,
+g=5.0,
+J=0.1,           # OK
+C_m=1.,          # OK
+V_rest=0.,       # OK
+V_th=20.,        # OK
+V_reset=10.,     # OK
+tau_m=20.,       # OK
+tau_rp=2.,       # OK
+D=1.5            # OK
+'''
+
+
+class BrunelNetworkSolver:
     """
     neuronal network composed of excitatory and inhibitory spiking neurons
 
@@ -83,15 +131,14 @@ class BrunelNetwork:
             order=100,
             epsilon=0.1,
             eta=2.0,
-            g=10.0,
+            g=5.0,
             J=0.1,
-            C_m=250.,
+            C_m=1.,  # 250., 1.
             V_rest=0.,
             V_th=20.,
             V_reset=10.,
             tau_m=20.,
             tau_rp=2.,
-            tau_syn=0.5,
             D=1.5
     ):
         """Initialize the simulation, set up data directory
@@ -551,7 +598,7 @@ class BrunelNetwork:
             for sender in nodes[:self._N_rec]:
 
                 st = events['times'][events['senders'] == sender]
-                st = st[st > self._cutoff] - self._cutoff
+                #st = st[st > self._cutoff] - self._cutoff
                 id = events['senders'][events['senders'] == sender][0]
                 neo_spiketrain = SpikeTrain(st,
                                             t_stop=self.t_stop,
@@ -654,7 +701,7 @@ class BrunelNetwork:
 
     @eta.setter
     def eta(self, eta):
-        self._check_type_int_float(eta, 'eta')
+        #self._check_type_int_float(eta, 'eta')
         self._eta = eta
 
     @property
@@ -663,7 +710,7 @@ class BrunelNetwork:
 
     @g.setter
     def g(self, g):
-        self._check_type_int_float(g, 'g')
+        #self._check_type_int_float(g, 'g')
         self._g = g
 
     @property
@@ -672,7 +719,7 @@ class BrunelNetwork:
 
     @J.setter
     def J(self, J):
-        self._check_type_int_float(J, 'J')
+        #self._check_type_int_float(J, 'J')
         self._J = J
 
 
@@ -685,6 +732,7 @@ if __name__ == "__main__":
     bnet.summary()
     bnet.plot_raster()
     spiketrains = bnet.spiketrains(n_type="exc")
+    bnet.summary()
 
     '''
     average_firing_rates = []

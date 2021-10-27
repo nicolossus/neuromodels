@@ -8,16 +8,17 @@ import numpy as np
 import quantities as pq
 import viziphant
 from elephant.spike_train_correlation import correlation_coefficient
-from neuromodels.models import BrunelNetwork
+from neuromodels.solvers import BrunelNetworkSolver
 from viziphant.rasterplot import rasterplot as vizi_rasterplot
 
 
-class BrunelSimulator:
+class BrunelNet:
 
     def __init__(
         self,
         T=1000,
         dt=0.1,
+        J=0.1,
         cutoff=0,
         N_rec=100,
         threads=1,
@@ -30,7 +31,7 @@ class BrunelSimulator:
             Arbitrary keyword arguments are passed to the BrunelNetwork
             constructor.
         """
-        self._bnet = BrunelNetwork(**kwargs)
+        self._bnet = BrunelNetworkSolver(J=J, **kwargs)
         self._T = T
         self._dt = dt
         self._cutoff = cutoff
@@ -39,7 +40,21 @@ class BrunelSimulator:
         self._print_time = print_time
         self._n_type = n_type
 
-    def __call__(self, eta=2.0, g=4.5, J=0.35, n_type=None):
+    def __call__(self, eta=2.0, g=4.5):
+
+        self._bnet.eta = eta
+        self._bnet.g = g
+        self._bnet.simulate(T=self._T,
+                            dt=self._dt,
+                            cutoff=self._cutoff,
+                            N_rec=self._N_rec,
+                            threads=self._threads,
+                            print_time=self._print_time)
+        self._spiketrains = self._bnet.spiketrains(n_type=self._n_type)
+        return self._spiketrains
+
+    '''
+    def __call__(self, eta=2.0, g=4.5, J=0.1, n_type=None):
         if n_type is None:
             n_type = self._n_type
         self._bnet.eta = eta
@@ -53,6 +68,7 @@ class BrunelSimulator:
                             print_time=self._print_time)
         self._spiketrains = self._bnet.spiketrains(n_type=n_type)
         return self._spiketrains
+    '''
 
     def _check_type_quantity(self, parameter, name):
         if not isinstance(parameter, pq.Quantity):
@@ -219,9 +235,9 @@ if __name__ == "__main__":
     t_stop = 500 * pq.ms
 
     # print(type(spiketrains))
-    bnet_simulator.rasterplot()
+    # bnet_simulator.rasterplot()
     #bnet_simulator.rasterplot(t_start=t_start, t_stop=t_stop)
-    # bnet_simulator.rasterplot_rates(spiketrains)
+    bnet_simulator.rasterplot_rates(spiketrains)
     #bnet_simulator.rasterplot_rates(t_start=t_start, t_stop=t_stop)
     # bnet_simulator.plot_time_histogram(spiketrains)
     # bnet_simulator.plot_instantaneous_rate(spiketrains)

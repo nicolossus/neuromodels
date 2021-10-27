@@ -20,8 +20,6 @@ class HodgkinHuxley:
             dt,
             y0=None,
             method='RK45',
-            noise=False,
-            scale_noise=0.01,
             pdict={},
             solver_options={},
     ):
@@ -33,11 +31,16 @@ class HodgkinHuxley:
         self._dt = dt
         self._y0 = y0
         self._method = method
-        #self._with_noise = with_noise
-        self._scale_noise = scale_noise
         self._solver_options = solver_options
 
-    def __call__(self, gbar_K=36., gbar_Na=120., batch_size=1, random_state=None):
+    def __call__(
+        self,
+        gbar_K=36.,
+        gbar_Na=120.,
+        noise=False,
+        noise_scale=0.1,
+        noise_seed=None
+    ):
         self._hh.gbar_K = gbar_K
         self._hh.gbar_Na = gbar_Na
 
@@ -51,6 +54,12 @@ class HodgkinHuxley:
 
         self._V = self._hh.V
         self._t = self._hh.t
+
+        if noise:
+            rng = np.random.default_rng(noise_seed)
+            self._V += rng.normal(loc=0,
+                                  scale=noise_scale,
+                                  size=self._V.shape)
 
         return self._V, self._t
 
@@ -126,12 +135,12 @@ class HodgkinHuxley:
         sps = SpikeStats(t_stim_on, t_stim_off, threshold, stats)
         return sps(self._V, self._t)
 
-    def stats_df(self, t_stim_on, t_stim_off, threshold=0, stats=None):
+    def stats_df(self, t_stim_on, t_stim_off, threshold=0, sum_stats=None):
         """
 
         """
         stat_labels = []
-        for stat in stats:
+        for stat in sum_stats:
             if stat == "n_spikes":
                 stat = "Number of spikes"
             else:
@@ -139,7 +148,7 @@ class HodgkinHuxley:
                 stat = stat.replace("_", " ")
             stat_labels.append(stat)
 
-        sps = SpikeStats(t_stim_on, t_stim_off, threshold, stats)
+        sps = SpikeStats(t_stim_on, t_stim_off, threshold, sum_stats)
         stats_data = dict(zip(stat_labels, sps(self._V, self._t)))
         df = pd.DataFrame.from_dict(stats_data, orient='index').reset_index()
         df.columns = ['Statistic', 'Value']
@@ -187,10 +196,9 @@ class HodgkinHuxley:
                    ylabel="Membrane Potential (mV)"
                    )
 
-        return ax
+        return fig
 
     def plot_rates(self, rates_only=False, savefig=None):
-        pass
         # fig = plt.figure(figsize=(7, 5), tight_layout=True, dpi=300)
         gs = gridspec.GridSpec(2, 1, height_ratios=[4, 2])
 
@@ -356,6 +364,134 @@ class HodgkinHuxley:
 
         fig.suptitle("Spike Statistics")
         # plt.show()
+        return fig
+
+    def plot_spike_statistics2(
+        self,
+        t_stim_on,
+        t_stim_off,
+        threshold=0,
+        ax=None,
+    ):
+        V = self.V
+        t = self.t
+        sps = SpikeStats(t_stim_on, t_stim_off, threshold)
+        # plot voltage trace with features
+        spikes = sps.find_spikes(V, t)
+        n_spikes = spikes["n_spikes"]
+
+        if n_spikes < 3:
+            msg = ("At least 3 spikes are needed in voltage trace in order "
+                   "to plot spike statistics")
+            raise RuntimeError(msg)
+
+        spike_idxs = spikes["spike_idxs"]
+        spike_heights = spikes["spike_heights"]
+        width_lines = sps.width_lines(V, t)
+        ahp_depth_idxs = sps.AHP_depth_positions(V, t)
+
+        if ax is None:
+            ax = plt.gca()
+
+        # voltage trace
+        ax.plot(t,
+                V,
+                lw=1.5,
+                label='Voltage trace'
+                )
+
+        # AP overshoot
+        ax.plot(t[spike_idxs],
+                V[spike_idxs],
+                "x",
+                ms=7,
+                color='black',
+                label='AP overshoot'
+                )
+
+        # AP widths
+        ax.hlines(*width_lines,
+                  color="red",
+                  lw=2,
+                  label='AP width'
+                  )
+
+        # AHP depths
+        ax.plot(t[ahp_depth_idxs],
+                V[ahp_depth_idxs],
+                'o',
+                ms=5,
+                color='indianred',
+                label='AHP depth'
+                )
+
+        # latency to first spike
+        ax.hlines(self.V_rest,
+                  t_stim_on,
+                  t[spike_idxs[0]],
+                  color='black',
+                  lw=1.5,
+                  ls=":"
+                  )
+        ax.vlines(t[spike_idxs[0]],
+                  self.V_rest,
+                  spike_heights[0],
+                  color='black',
+                  lw=1.5,
+                  ls=":",
+                  label="Lat. to first spike"
+                  )
+
+        # spike rate; mark spike locations
+        for i in range(n_spikes):
+            if i == 0:
+                ax.vlines(t[spike_idxs[i]],
+                          V[spike_idxs[i]],
+                          48,
+                          color='darkorange',
+                          ls='--',
+                          label='Spike rate'
+                          )
+            else:
+                ax.vlines(t[spike_idxs[i]],
+                          V[spike_idxs[i]],
+                          48,
+                          color='darkorange',
+                          ls='--'
+                          )
+        # the marked ISIs are used to compute the accommodation index
+        # ISI arrow legend
+        ax.plot([],
+                [],
+                color='g',
+                marker=r'$\longleftrightarrow$',
+                linestyle='None',
+                markersize=15,
+                label='ISIs'
+                )
+        for i in range(n_spikes - 1):
+            ax.annotate('',
+                        xy=(t[spike_idxs[i]], 48),
+                        xycoords='data',
+                        xytext=(t[spike_idxs[i + 1]], 48),
+                        textcoords='data',
+                        arrowprops={'arrowstyle': '<->', 'color': 'g'}
+                        )
+
+        ax.set(xlabel='Time (ms)',
+               ylabel='Membrane Potential (mV)'
+               )
+
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles,
+                  labels,
+                  loc='center left',
+                  bbox_to_anchor=(1.04, 0.5),
+                  fancybox=True,
+                  borderaxespad=0.1,
+                  ncol=1,
+                  frameon=False
+                  )
 
 
 if __name__ == "__main__":
@@ -392,20 +528,34 @@ if __name__ == "__main__":
     stimulus = ConstantStimulus(I_amp, t_stim_on, t_stim_off)
     # stimulus = 10
     hh = HodgkinHuxley(stimulus, T, dt)
-    V, t = hh(gbar_K=36., gbar_Na=120.)
+    V, t = hh(gbar_K=36., gbar_Na=120., noise=True, noise_seed=42)
 
-    stats = ["n_spikes",
-             "spike_rate",
-             "latency_to_first_spike",
-             "average_AP_overshoot",
-             "average_AHP_depth",
-             "average_AP_width",
-             "accommodation_index"]
+    sps = SpikeStats(t_stim_on, t_stim_off, threshold=0)
 
-    sum_stats = hh.stats_df(t_stim_on, t_stim_off, stats=stats)
+    spike_data = sps.find_spikes(V, t)
+    peaks = spike_data['spike_idxs']
+    print(f'n spikes: {sps.n_spikes(V, t)}')
+    print(f'peaks: {peaks}')
+    print(len(peaks))
 
-    #hh.plot_spike_statistics(t_stim_on, t_stim_off)
+    #plt.plot(t, V)
+    #plt.plot(t[peaks], V[peaks], "x")
+    # plt.show()
+    #t0 = 12.2
+    #print(np.abs(t - t0).argmin())
+    #print(t.flat[np.abs(t - t0).argmin()])
+
+    s_stats = ["n_spikes",
+               "spike_rate",
+               "latency_to_first_spike",
+               "average_AP_overshoot",
+               "average_AHP_depth",
+               "average_AP_width",
+               "accommodation_index"]
+
+    #sum_stats = hh.stats_df(t_stim_on, t_stim_off, sum_stats=s_stats)
     # print(sum_stats)
 
-    # hh.plot_voltage_trace(with_stim=True)
+    #hh.plot_spike_statistics(t_stim_on, t_stim_off)
+    hh.plot_voltage_trace(with_stim=True)
     plt.show()

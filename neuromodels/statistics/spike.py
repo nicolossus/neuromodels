@@ -28,6 +28,7 @@ class SpikeStats:
         t_stim_on,
         t_stim_off,
         threshold=0,
+        rfp=12.2,
         stats=None,
     ):
         # check ALLOWED_STATISTIC
@@ -48,6 +49,7 @@ class SpikeStats:
         self._t_stim_off = t_stim_off
         self._duration = self._t_stim_off - self._t_stim_on
         self._threshold = threshold
+        self._rfp = rfp
 
     def __call__(self, V, t):
         if not self._stats_provided:
@@ -89,8 +91,14 @@ class SpikeStats:
             * spike widths data in terms of indices in voltage array, key: `'spike_widths_data'`
         """
 
+        # set required distance between spikes based on refractory period
+        d = np.abs(t - self._rfp).argmin()
+
         # find spikes in voltage trace
-        spike_idxs, properties = find_peaks(V, height=self._threshold)
+        spike_idxs, properties = find_peaks(V,
+                                            height=self._threshold,
+                                            distance=d
+                                            )
 
         # obtain data about width of spikes; note that returned widths will be
         # in terms of index positions in voltage array
@@ -102,7 +110,8 @@ class SpikeStats:
 
         # membrane potential as interpolation function
         V_interpolate = interp1d(x=np.linspace(0, len(V), len(V)),
-                                 y=V)
+                                 y=V
+                                 )
 
         # voltage spike width in terms of physical units (instead of position
         # in array)
@@ -171,8 +180,11 @@ class SpikeStats:
             action potentials.
         """
 
+        '''
         spikes = self.find_spikes(V, t)
         spike_idxs = spikes["spike_idxs"]
+
+
 
         ahp_depth_positions = []
         for i in range(spikes["n_spikes"] - 1):
@@ -186,6 +198,26 @@ class SpikeStats:
             # the position in total voltage trace
             min_pos = spike1_idx + min_rel_pos
             ahp_depth_positions.append(min_pos)
+
+        return ahp_depth_positions
+        '''
+
+        d = np.abs(t - self._rfp).argmin()
+
+        # find spikes in voltage trace
+        spike_idxs, _ = find_peaks(V,
+                                   height=self._threshold,
+                                   distance=d
+                                   )
+
+        # find depths after first spike
+        neg_spike_idxs, _ = find_peaks(-V[spike_idxs[0]:spike_idxs[-1]],
+                                       height=self._threshold,
+                                       distance=d
+                                       )
+
+        # shift found positions to match indicies in voltage trace arrays
+        ahp_depth_positions = neg_spike_idxs + spike_idxs[0]
 
         return ahp_depth_positions
 
@@ -271,6 +303,8 @@ class SpikeStats:
     def average_AHP_depth(self, V, t):
         """
         """
+
+        '''
         spikes = self.find_spikes(V, t)
         n_spikes = spikes["n_spikes"]
         spike_idxs = spikes["spike_idxs"]
@@ -282,6 +316,18 @@ class SpikeStats:
                              for i in range(n_spikes - 1)])
 
         avg_ahp_depth = sum_ahp_depth / n_spikes
+
+        return avg_ahp_depth
+        '''
+
+        spikes = self.find_spikes(V, t)
+        n_spikes = spikes["n_spikes"]
+
+        if n_spikes < 3:
+            return np.inf
+
+        ahp_depth_pos = self.AHP_depth_positions(V, t)
+        avg_ahp_depth = np.mean(V[ahp_depth_pos])
 
         return avg_ahp_depth
 
@@ -361,10 +407,18 @@ class SpikeStats:
         if self._n_spikes < 3:
             return np.inf
 
+        '''
+
         sum_ahp_depth = sum([np.min(self._V[spike_idxs[i]:spike_idxs[i + 1]])
                              for i in range(self._n_spikes - 1)])
 
         avg_ahp_depth = sum_ahp_depth / self._n_spikes
+
+        return avg_ahp_depth
+        '''
+
+        ahp_depth_pos = self.AHP_depth_positions(self._V, self._t)
+        avg_ahp_depth = np.mean(self._V[ahp_depth_pos])
 
         return avg_ahp_depth
 

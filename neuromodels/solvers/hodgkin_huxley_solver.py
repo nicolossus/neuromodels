@@ -144,8 +144,18 @@ class HodgkinHuxleySolver:
         plt.show()
     """
 
-    def __init__(self, V_rest=-65., Cm=1., gbar_K=36., gbar_Na=120.,
-                 gbar_L=0.3, E_K=-77., E_Na=50., E_L=-54.4, degC=6.3):
+    def __init__(
+        self,
+        V_rest=-65.,
+        Cm=1.,
+        gbar_K=36.,
+        gbar_Na=120.,
+        gbar_L=0.3,
+        E_K=-77.,
+        E_Na=50.,
+        E_L=-54.4,
+        degC=6.3
+    ):
 
         # Check model parameters
         self._check_type_int_float(V_rest, 'V_rest')
@@ -691,7 +701,7 @@ class HodgkinHuxleySolver:
 
     @gbar_K.setter
     def gbar_K(self, gbar_K):
-        self._check_conductances(gbar_K, 'gbar_K')
+        #self._check_conductances(gbar_K, 'gbar_K')
         self._gbar_K = gbar_K
 
     @property
@@ -700,7 +710,7 @@ class HodgkinHuxleySolver:
 
     @gbar_Na.setter
     def gbar_Na(self, gbar_Na):
-        self._check_conductances(gbar_Na, 'gbar_Na')
+        #self._check_conductances(gbar_Na, 'gbar_Na')
         self._gbar_Na = gbar_Na
 
     @property

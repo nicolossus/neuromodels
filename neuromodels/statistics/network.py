@@ -6,6 +6,7 @@ import neo
 import numpy as np
 import quantities as pq
 import scipy.stats
+from elephant.conversion import BinnedSpikeTrain
 
 ALLOWED_STATISTICS = ["mean_firing_rate",
                       "mean_cv",
@@ -32,11 +33,15 @@ class SpikeTrainStats:
     The statistics calculator can be used as a callable by just providing the
     spike trains ... [REPHRASE] ... The statistics to be computed must
     then be passed to the class constructor, along with other keyword arguments
+
+    inst_rate_n_samples : int
+        The number of samples used to calculate the instantaneous rate.
+        Default is 50.
     """
 
-    def __init__(self, stats=None, t_start=None, t_stop=None):
+    def __init__(self, stats=None, t_start=None, t_stop=None, inst_rate_n_samples=50):
         # check allowed statistics
-        self._stats = stats
+        self._stats = stats[:]
         # error handling
         if isinstance(self._stats, (list, tuple, np.ndarray)):
             for i, stat in enumerate(self._stats):
@@ -48,6 +53,7 @@ class SpikeTrainStats:
 
         self._t_start = t_start
         self._t_stop = t_stop
+        self._inst_rate_n_samples = inst_rate_n_samples
 
     def __call__(self, spiketrains):
         if self._stats is None:
@@ -79,14 +85,14 @@ class SpikeTrainStats:
 
         return all(count == 0 for count in spike_counts)
 
-    def mean_firing_rate(self, spiketrains, t_start=None, t_stop=None):
+    def mean_firing_rate(self, spiketrains, t_start=None, t_stop=None, units=None):
         """Compute the time and population-averaged firing rate.
 
         Compute the mean firing rate of input spike trains.
 
         The time averaged firing rate of a single spike train is calculated as
         the number of spikes in the spike train in the range [t_start, t_stop]
-        divided by the time interval t_stop - t_start. 
+        divided by the time interval t_stop - t_start.
 
         The mean firing rate of all the
         provided spike trains is simply calculated by averaging over all the
@@ -128,6 +134,11 @@ class SpikeTrainStats:
         """
         firing_rates = []
 
+        if units is not None:
+            _units = units
+        else:
+            _units = pq.kHz
+
         if self._is_empty(spiketrains):
             return np.inf
 
@@ -135,10 +146,41 @@ class SpikeTrainStats:
             firing_rate = es.mean_firing_rate(spiketrain,
                                               t_start=t_start,
                                               t_stop=t_stop)
-            firing_rate.units = pq.Hz
+            firing_rate.units = _units
             firing_rates.append(firing_rate.magnitude)
 
         return np.mean(firing_rates)
+
+    def instantaneous_rate(self, spiketrains, t_start=None, t_stop=None):
+        """
+        Calculate the mean instantaneous firing rate.
+
+        Parameters
+        ----------
+        simulation_end : float
+            The simulation end time.
+        neo_spiketrains : list
+            A list of Neo spiketrains.
+        Returns
+        -------
+        time : array
+            Time of the instantaneous firing rate.
+        instantaneous_rate : float
+            The instantaneous firing rate.
+        """
+
+        inst_rates = []
+        t = None
+        for spiketrain in spiketrains:
+            sampling_period = spiketrain.t_stop / self._inst_rate_n_samples
+            inst_rate = es.instantaneous_rate(spiketrain, sampling_period)
+
+            if t is None:
+                t = inst_rate.times.copy()
+
+            inst_rates.append(inst_rate.magnitude.flatten())
+
+        return t.magnitude, inst_rates
 
     def mean_cv(self, spiketrains):
         """Compute the coefficient of variation averaged over recorded spike trains.
