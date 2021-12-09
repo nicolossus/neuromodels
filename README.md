@@ -1,9 +1,9 @@
 # NeuroModels
 [![PyPi version](https://img.shields.io/pypi/v/neuromodels.svg)](https://pypi.python.org/pypi/neuromodels)
 [![python compatibility](https://img.shields.io/pypi/pyversions/neuromodels.svg)](https://pypi.python.org/pypi/neuromodels)
+[![GitHub license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nicolossus/neuromodels/blob/master/LICENSE)
 <!--[![Documentation Status](https://readthedocs.org/projects/neuromodels/badge/?version=latest)](https://neuromodels.readthedocs.io/en/latest/?badge=latest)
 [![Tests](https://github.com/nicolossus/neuromodels/workflows/Tests/badge.svg?branch=main)](https://github.com/nicolossus/neuromodels/actions)-->
-[![GitHub license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nicolossus/neuromodels/blob/master/LICENSE)
 
 
 `NeuroModels` is a Python toolbox for simulating neuroscientific models, post-simulation analysis and feature extraction.
