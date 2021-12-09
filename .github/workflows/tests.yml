@@ -24,10 +24,19 @@ jobs:
       with:
         persist-credentials: false
 
+    - name: Add conda to system path
+        run: |
+          # $CONDA is an environment variable pointing to the root of the miniconda directory
+          echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
-        $CONDA/bin/conda env update --file environment.yml --name base
-        $CONDA/bin/pip install .
+        conda env update --file environment.yml --name base
+      #  pip install .
+
+    #- name: Install dependencies
+    #  run: |
+    #    $CONDA/bin/conda env update --file environment.yml --name base
+    #    $CONDA/bin/pip install .
       #uses: goanpeca/setup-miniconda@v1
       #with:
       #  activate-environment: nm-dev
@@ -47,7 +56,8 @@ jobs:
     #    pip install -e .[dev]
     - name: Test with pytest
       run: |
-        $CONDA/bin/pytest
+      # $CONDA/bin/pytest
+        pytest
 
     #- name: Install dependencies
     #  run: |
